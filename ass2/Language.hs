@@ -18,15 +18,28 @@ data Ident = Digit Int | Letter String | Plus Int Int | Minus Int Int deriving (
 --type Ident = ()
 
 -- Exercise 5
-type AlgProgram rules rule id cmd alt = ( rules -> rule            -- Program
-                                        , rule -> id -> [cmd]
-                                        , cmd
-                                        , cmd -> Dir
-                                        , cmd -> Dir
-)
+type AlgProgram rules rule id cmd alt = ( rule   -> rules           -- Program
+                                        , id     -> [cmd] -> rule  -- Rule
+                                        , cmd                      -- Cmd
+                                        , Dir    -> cmd            -- Turn
+                                        , Dir    -> [alt] -> cmd   -- Case
+                                        , id     -> cmd            -- CIdent
+                                        , Pat    -> [cmd] -> alt   -- Alt
+                                        , Int    -> id             -- Digit
+                                        , String -> id             -- Letter
+                                        , Int    -> Int   -> id    -- Plus
+                                        , Int    -> Int   -> id    -- Minus
+                                        )
 
---foldProgram :: AlgProgram a -> Program -> a
---foldProgram = undefined
+--{-
+foldProgram :: AlgProgram rules rule id cmd alt -> Program rules -> a
+foldProgram (rules rule id cmd alt) = fold
+    where
+        foldProgram (Program rules') = Program (map foldRule rules')
+        foldRule    (Rule rule')     = fold rules'
+        foldCmd     (Case dir alt)   = go
+        foldCmd     (Go)             = go
+--}
 {-
 
 Exercise 4
