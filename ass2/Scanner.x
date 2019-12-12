@@ -16,40 +16,40 @@ tokens :-
     "--".*                        ;
 
     -- Symbolic
-    \;                            { \s -> TokenSemicolon }
-    "->"                          { \s -> TokenRightArrow }
-    \,                            { \s -> TokenComma }
-    \.                            { \s -> TokenPeriod }
+    \;                            { \_ -> TokenSemicolon }
+    "->"                          { \_ -> TokenRightArrow }
+    \,                            { \_ -> TokenComma }
+    \.                            { \_ -> TokenPeriod }
 
     -- Command Keywords
-    go                            { \s -> TokenGo }
-    take                          { \s -> TokenTake }
-    mark                          { \s -> TokenMark }
-    nothing                       { \s -> TokenNothing }
-    turn                          { \s -> TokenTurn }
-    case                          { \s -> TokenCase }
-    of                            { \s -> TokenOf }
-    end                           { \s -> TokenEnd }
+    go                            { \_ -> TokenGo }
+    take                          { \_ -> TokenTake }
+    mark                          { \_ -> TokenMark }
+    nothing                       { \_ -> TokenNothing }
+    turn                          { \_ -> TokenTurn }
+    case                          { \_ -> TokenCase }
+    of                            { \_ -> TokenOf }
+    end                           { \_ -> TokenEnd }
 
     -- Pattern Keywords
-    left                          { \s -> TokenLeft }
-    right                         { \s -> TokenRight }
-    front                         { \s -> TokenFront }
+    left                          { \_ -> TokenLeft }
+    right                         { \_ -> TokenRight }
+    front                         { \_ -> TokenFront }
 
-    Empty                         { \s -> TokenEmpty }
-    Lambda                        { \s -> TokenLambda }
-    Debris                        { \s -> TokenDebris }
-    Asteroid                      { \s -> TokenAsteroid }
-    Boundary                      { \s -> TokenBoundary }
+    Empty                         { \_ -> TokenEmpty }
+    Lambda                        { \_ -> TokenLambda }
+    Debris                        { \_ -> TokenDebris }
+    Asteroid                      { \_ -> TokenAsteroid }
+    Boundary                      { \_ -> TokenBoundary }
 
     -- Identifier
-    \+                            { \s -> TokenPlus }
-    \-                            { \s -> TokenMinus }
+    \+                            { \_ -> TokenPlus }
+    \-                            { \_ -> TokenMinus }
     $digit+                       { \s -> TokenDigit (read s) }
     $alpha [$alpha $digit \_ \’]* { \s -> TokenLetter s }
 
     -- Catch all
-    \_                             { \s -> TokenUnderscore }
+    \_                             { \_ -> TokenUnderscore }
 
 {
 -- Each action has type :: String -> Token
@@ -83,7 +83,4 @@ data Token = TokenRightArrow
            | TokenMinus
            deriving (Eq,Show)
 
-main = do
-    s <- getContents
-    print (alexScanTokens s)
 }

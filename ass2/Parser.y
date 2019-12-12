@@ -1,5 +1,5 @@
 {
-module Parser ( parseArrow ) where
+module Parser where
 
 import Prelude hiding (Left, Right, Nothing)
 
@@ -10,6 +10,7 @@ import Scanner
 
 %name parseProgram
 %tokentype { Token }
+%error { parseError }
 
 %token
 "->"            { TokenRightArrow }
@@ -40,26 +41,29 @@ digit           { TokenDigit $$   }
 
 %%
 
-Program :: { [Rule] }
-Program : {- empty -}        { []      }
-        | Rule Program       { $1 : $2 }
+Program :: { Program }
+Program :  Rules             { Program $1 }
+
+Rules :: { [Rule] }
+Rules : {- empty -}          { []      }
+      | Rules Rule           { $2 : $1 }
 
 Rule  :: { Rule }
-Rule  : Ident "->" Cmds '.'  { $1 $3   }
+Rule  : Ident "->" Cmds '.'  { Rule $1 $3 }
 
 Cmds  :: { [Cmd] } 
 Cmds  : {- empty -}          { []      } 
       | Cmd ',' Cmds         { $1 : $3 }
-      | Cmd                  { $1      }
+      | Cmd                  { [$1]    }
 
 Cmd   :: { Cmd } 
-Cmd   : go                   { Go      }
-      | take                 { Take    }
-      | mark                 { Mark    }
-      | nothing              { Nothing }
-      | turn Dir             { $2      }
-      | case Dir of Alts end { $2 $4   }
-      | Ident                { $1      }
+Cmd   : go                   { Go         }
+      | take                 { Take       }
+      | mark                 { Mark       }
+      | nothing              { Nothing    }
+      | turn Dir             { Turn $2    }
+      | case Dir of Alts end { Case $2 $4 }
+      | Ident                { CIdent $1  }
 
 Dir   :: { Dir }
 Dir   : left                 { Left  }
@@ -69,14 +73,13 @@ Dir   : left                 { Left  }
 Alts  :: { [Alt] }
 Alts  : {- empty -}          { []      } 
       | Alt ';' Alts         { $1 : $3 }
-      | Alt                  { $1      }
+      | Alt                  { [$1]    }
 
 Alt   :: { Alt }
-Alt   : Pat                  { $1  }
-      | Cmds                 { $1 }
+Alt   : Pat "->" Cmds        { Alt $1 $3 }
 
 Pat   :: { Pat }
-Pat   : Contents             { $1 }
+Pat   : Contents             { Contents }
       | '_'                  { Underscore }
 
 Contents :: { Contents }
@@ -91,3 +94,13 @@ Ident : letter               { Letter $1    }
       | digit                { Digit  $1    }
       | digit '+' digit      { Plus   $1 $3 }
       | digit '-' digit      { Minus  $1 $3 }
+
+{
+    
+-- Happy parse error.
+parseError :: [Token] -> a
+parseError = error "Parse error, happy niet blij."
+
+main = getContents >>= \_ -> return $ parseProgram . alexScanTokens
+
+}

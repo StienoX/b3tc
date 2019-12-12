@@ -51,4 +51,4 @@ data ArrowState  =  ArrowState Space Pos Heading Stack
 data Step  =  Done  Space Pos Heading
            |  Ok    ArrowState
            |  Fail  String
-
+           
