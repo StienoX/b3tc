@@ -21,3 +21,6 @@ cabal.project.local
 cabal.project.local~
 .HTF/
 .ghc.environment.*
+
+ass2/Parser.hs
+ass2/Scanner.hs
