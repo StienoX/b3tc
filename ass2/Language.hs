@@ -18,7 +18,8 @@ data Ident = Digit Int | Letter String | Plus Int Int | Minus Int Int deriving (
 --type Ident = ()
 
 -- Exercise 5
-type AlgProgram rules rule id cmd alt = ( rule   -> rules           -- Program
+type AlgProgram program rule id cmd alt = 
+                                        ( rule   -> program        -- Program
                                         , id     -> [cmd] -> rule  -- Rule
                                         , cmd                      -- Cmd
                                         , Dir    -> cmd            -- Turn
@@ -32,13 +33,20 @@ type AlgProgram rules rule id cmd alt = ( rule   -> rules           -- Program
                                         )
 
 --{-
-foldProgram :: AlgProgram rules rule id cmd alt -> Program rules -> a
-foldProgram (rules rule id cmd alt) = fold
+foldProgram :: AlgProgram program rule id cmd alt -> Program rules -> a
+foldProgram (program,rule,cmd,turn,case',indent,alt,digit,letter,plus,minus) = foldProgram
     where
-        foldProgram (Program rules') = Program (map foldRule rules')
-        foldRule    (Rule rule')     = fold rules'
-        foldCmd     (Case dir alt)   = go
-        foldCmd     (Go)             = go
+        foldProgram (Program rules)   = program $ map foldRule rules
+        foldRule    (Rule ident cmds) = rule ident $ map foldCmd cmds
+        foldCmd     (Case dir alts)   = case' dir $ map foldAlt alts
+        foldCmd     (Turn dir)        = turn foldDir dir
+        foldCmd     (Take)            = take
+        foldCmd     (Mark)            = mark
+        foldCmd     (Nothing)         = nothing
+        foldDir     (Left)            = left
+        foldDir     (Right)           = right
+        foldDir     (Front)           = front
+        foldAlt     (Alt pat cmds)    = alt pat $ map foldCmd cmds
 --}
 {-
 
