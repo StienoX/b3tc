@@ -43,10 +43,7 @@ tokens :-
     Boundary                      { \_ -> TokenBoundary }
 
     -- Identifier
-    \+                            { \_ -> TokenPlus }
-    \-                            { \_ -> TokenMinus }
-    $digit+                       { \s -> TokenDigit (read s) }
-    $alpha [$alpha $digit \_ \’]* { \s -> TokenLetter s }
+    $alpha [$alpha $digit \+ \- \_ \’]* { \s -> TokenString s }
 
     -- Catch all
     \_                             { \_ -> TokenUnderscore }
@@ -77,10 +74,7 @@ data Token = TokenRightArrow
            | TokenAsteroid
            | TokenBoundary
            | TokenUnderscore
-           | TokenLetter String
-           | TokenDigit Int
-           | TokenPlus
-           | TokenMinus
+           | TokenString String
            deriving (Eq,Show)
 
 }

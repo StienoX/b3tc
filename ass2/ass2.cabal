@@ -4,11 +4,10 @@ name:                ass2
 version:             0.1.0.0
 build-type:          Simple
 
-executable Arrow
+executable Main
   main-is: Arrow.hs
   build-tools: happy, alex
   other-modules: Language
-  -- other-extensions: 
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:
       base >=4.7 && <5,

@@ -34,19 +34,13 @@ debris          { TokenDebris     }
 asteroid        { TokenAsteroid   }
 boundary        { TokenBoundary   }
 '_'             { TokenUnderscore }
-letter          { TokenLetter $$  }
-digit           { TokenDigit $$   }
-'+'             { TokenPlus       }
-'-'             { TokenMinus      }
+string          { TokenString $$  }
 
 %%
 
-Program :: { Program }
-Program :  Rules             { Program $1 }
-
-Rules :: { [Rule] }
-Rules : {- empty -}          { []      }
-      | Rules Rule           { $2 : $1 }
+Program :: { [Rule] }
+Program : {- empty -}        { []      }
+      | Program Rule         { $2 : $1 }
 
 Rule  :: { Rule }
 Rule  : Ident "->" Cmds '.'  { Rule $1 $3 }
@@ -79,21 +73,15 @@ Alt   :: { Alt }
 Alt   : Pat "->" Cmds        { Alt $1 $3 }
 
 Pat   :: { Pat }
-Pat   : Contents             { Contents }
-      | '_'                  { Underscore }
+Pat   : empty                { PEmpty    }
+      | lambda               { PLambda   }
+      | debris               { PDebris   }
+      | asteroid             { PAsteroid }
+      | boundary             { PBoundary }
+      | '_'                  { PUnderscore }
 
-Contents :: { Contents }
-Contents  : empty            { Empty    }
-          | lambda           { Lambda   }
-          | debris           { Debris   }
-          | asteroid         { Asteroid }
-          | boundary         { Boundary }
-
-Ident :: { Ident }
-Ident : letter               { Letter $1    }
-      | digit                { Digit  $1    }
-      | digit '+' digit      { Plus   $1 $3 }
-      | digit '-' digit      { Minus  $1 $3 }
+Ident :: { String }
+Ident : string               { $1 }
 
 {
     

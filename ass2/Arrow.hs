@@ -1,4 +1,10 @@
-module Arrow where
+{-
+INFOB3TC – Assignment P2
+Nick Swaerdens - 6977960
+Stein Bout     - 6987729
+-}
+
+module Main where
 
 import Prelude hiding ((<*), (<$))
 import ParseLib.Abstract
@@ -9,9 +15,10 @@ import Data.Char (isSpace)
 
 import Language
 
-type Space     = Map Pos Contents
-type Size      = Int
-type Pos       = (Int, Int)
+type Space    = Map Pos Contents
+type Size     = Int
+type Pos      = (Int, Int)
+data Contents = Empty | Lambda | Debris | Asteroid | Boundary
 
 parseSpace :: Parser Char Space
 parseSpace =
@@ -37,9 +44,7 @@ contentsTable =
   [  (Empty,'.'),(Lambda,'\\'),(Debris,'%'),(Asteroid,'O'),(Boundary,'#')]
 
 -- These three should be defined by you
--- data Ident = Digit Int | Letter String | Plus | Minus
-
---type Ident = ()
+--type Ident = () defined in Language.hs
 type Commands = ()
 type Heading = ()
 
@@ -51,6 +56,23 @@ data ArrowState  =  ArrowState Space Pos Heading Stack
 data Step  =  Done  Space Pos Heading
            |  Ok    ArrowState
            |  Fail  String
-        
+
+-- Exercise 6
 check :: Program -> Bool
-check _ = True
+check p = checkUndefined 
+       && checkStartRule
+       && checkDupRules
+       && checkPatMatch
+  where
+    checkUndefined _ = False
+    checkStartRule _ = False
+    checkDupRules  _ = False
+    checkPatMatch  _ = False
+
+-- Exercise 7
+printSpace :: Space -> String
+printSpace sp = printSize
+  where
+    printSpace size = '(' : (read size) : ',' : (read size) : ")\n"
+
+main = undefined
