@@ -1,7 +1,7 @@
 {
 module Parser where
 
-import Prelude hiding (Left, Right, Nothing)
+import Prelude hiding (Left, Right)
 
 import Language
 import Scanner
@@ -54,7 +54,7 @@ Cmd   :: { Cmd }
 Cmd   : go                   { Go         }
       | take                 { Take       }
       | mark                 { Mark       }
-      | nothing              { Nothing    }
+      | nothing              { CNothing   }
       | turn Dir             { Turn $2    }
       | case Dir of Alts end { Case $2 $4 }
       | Ident                { CIdent $1  }

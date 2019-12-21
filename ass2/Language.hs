@@ -1,11 +1,11 @@
 module Language where
 
-import Prelude hiding (Left, Right, Nothing)
+import Prelude hiding (Left, Right)
 
 type Program = [Rule]
 data Rule    = Rule Ident Cmds deriving (Show)
 type Cmds    = [Cmd]
-data Cmd     = Go | Take | Mark | Nothing | Turn Dir | Case Dir Alts | CIdent Ident deriving (Show)
+data Cmd     = Go | Take | Mark | CNothing | Turn Dir | Case Dir Alts | CIdent Ident deriving (Show)
 data Dir     = Left | Right | Front deriving (Show)
 type Alts    = [Alt]
 data Alt     = Alt Pat Cmds deriving (Show)
@@ -71,7 +71,7 @@ foldProgram (program', rule', (go', take', mark', nothing', turn', case', cident
     foldCmd     Go                = go'
     foldCmd     Take              = take'
     foldCmd     Mark              = mark'
-    foldCmd     Nothing           = nothing'
+    foldCmd     CNothing          = nothing'
     foldAlt     (Alt pat cmds)    = alt' pat $ map foldCmd cmds
     foldIdent   s                 = ident' s
 
