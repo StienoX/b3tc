@@ -73,12 +73,12 @@ Alt   :: { Alt }
 Alt   : Pat "->" Cmds        { Alt $1 $3 }
 
 Pat   :: { Pat }
-Pat   : empty                { PEmpty    }
-      | lambda               { PLambda   }
-      | debris               { PDebris   }
-      | asteroid             { PAsteroid }
-      | boundary             { PBoundary }
-      | '_'                  { PUnderscore }
+Pat   : empty                { Empty    }
+      | lambda               { Lambda   }
+      | debris               { Debris   }
+      | asteroid             { Asteroid }
+      | boundary             { Boundary }
+      | '_'                  { Underscore }
 
 Ident :: { String }
 Ident : string               { $1 }

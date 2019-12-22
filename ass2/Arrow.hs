@@ -6,21 +6,26 @@ Stein Bout     - 6987729
 
 module Main where
 
-import Prelude hiding ((<*), (<$), Left, Right, take)
+import Prelude hiding ((<$>), (<$), (<*>), (<*), (*>), Left, Right)
 import ParseLib.Abstract
 import Data.Map (Map, foldrWithKey, fromList)
 import qualified Data.Map as L
 import Control.Monad (replicateM)
 import Data.Char (isSpace)
 
+import System.Directory
 import Language
 import Scanner
 import Parser
 
+import Debug.Trace
+
+
 type Space    = Map Pos Contents
 type Size     = Int
 type Pos      = (Int, Int)
-data Contents = Empty | Lambda | Debris | Asteroid | Boundary deriving (Eq, Ord, Show)
+--data Contents = Empty | Lambda | Debris | Asteroid | Boundary deriving (Eq, Ord, Show)
+type Contents = Pat
 
 parseSpace :: Parser Char Space
 parseSpace =
@@ -47,7 +52,7 @@ contentsTable =
 
 --type Ident = () defined in Language.hs
 type Commands    = Cmds
-data Heading     = R | L | U | D --Right Left Up Down
+data Heading     = R | L | U | D deriving (Show) --Right Left Up Down
 type Environment = Map Ident Commands
 
 type Stack       =  Commands
@@ -74,7 +79,7 @@ printSpace :: Space -> String
 printSpace sp = show maxKeys ++ "\n" ++ printBoard sp
   where
     maxKeys = foldrWithKey (\(k, l) _ (k', l') ->  (max k k', max l l') ) (0, 0) sp
-    (vSize, hSize) = maxKeys
+    (_, hSize) = maxKeys
 
     printBoard :: Map Pos Contents -> String
     printBoard = foldrWithKey (\k x ks -> (printEntry k $ lookup x contentsTable) ++ ks) ""
@@ -84,25 +89,6 @@ printSpace sp = show maxKeys ++ "\n" ++ printBoard sp
           | x == hSize         = v : "\n"
           | otherwise          = v : ""
         printEntry _ Nothing   = ""
-{--
-    outputList :: [[Char]]
-    outputList = map (\_ -> (map (\_ -> ' ') [0..hSize] )) [0..vSize] 
-
-    placeAt :: Pos -> Maybe Char -> [[Char]] -> [[Char]]
-    placeAt (a,b) (Just c) xs = undefined
-    placeAt _ Nothing xs      = xs
-
-    lookup' :: Pos -> Char
-    lookup' p = case lookup p sp of
-      | Just c = c
-      | Nothing = 
-        where
-          printEntry :: Pos -> Maybe Char -> String
-          printEntry (_, x) (Just v)
-            | x == hSize         = v : "\n"
-            | otherwise          = v : ""
-          printEntry _ Nothing   = " "
---}    
 
 -- Execise 8
 
@@ -112,56 +98,38 @@ toEnvironment     = makeEnv . check' . parseProgram . alexScanTokens
         makeEnv p = foldr (\(Rule ident cmds) env -> L.insert ident cmds env) L.empty p
 
 -- Execise 9
-{-
-type Commands    = Cmds
-type Heading     = Dir
-type Environment = Map Ident Commands
-
-type Stack       =  Commands
-data ArrowState  =  ArrowState Space Pos Heading Stack
-
-data Step  =  Done  Space Pos Heading
-           |  Ok    ArrowState
-           |  Fail  String
-
-
-type Space    = Map Pos Contents
-data Contents = Empty | Lambda | Debris | Asteroid | Boundary
-
--}
 
 step :: Environment -> ArrowState -> Step
-step _ (ArrowState space pos heading [])          = Done space pos heading --Stack empty -> Done
+step _   (ArrowState space pos heading [])        = Done space pos heading --Stack empty -> Done
 step env (ArrowState space pos heading (s:stack)) = exec s
   where 
-    exec Go         = Ok (ArrowState space            (move space pos heading) heading          stack)
-    exec Take       = Ok (ArrowState (take space pos) pos                      heading          stack)
-    exec Mark       = Ok (ArrowState (mark space pos) pos                      heading          stack)
-    exec CNothing   = Ok (ArrowState space            pos                      heading          stack)
-    exec (Turn d)   = Ok (ArrowState space            pos                      (turn d heading) stack)
-    exec (Case d a) = undefined
+    exec Go         = Ok (ArrowState space                   (move space pos heading) heading          stack)
+    exec Take       = Ok (ArrowState (updateSpace space pos) pos                      heading          stack)
+    exec Mark       = Ok (ArrowState (mark space pos)        pos                      heading          stack)
+    exec CNothing   = Ok (ArrowState space                   pos                      heading          stack)
+    exec (Turn d)   = Ok (ArrowState space                   pos                      (turn d heading) stack)
+    exec (Case d a) = handleCases d a
+      where
+        handleCases :: Dir -> Alts -> Step
+        handleCases _ []                        = Fail "No matching case."
+        handleCases _ ((Alt Underscore cmds):_) = Ok (ArrowState space pos heading (cmds ++ stack)) 
+        handleCases dir ((Alt pat cmds):alts)   = case ele of
+          Just x | (x == pat) -> Ok (ArrowState space pos heading (cmds ++ stack))
+          _                   -> handleCases dir alts
+          where
+            ele :: Maybe Contents
+            ele = L.lookup (peek pos (turn dir heading)) space
+
+            peek :: Pos -> Heading -> Pos
+            peek (y, x) U = (y + 1, x)
+            peek (y, x) R = (y, x + 1)
+            peek (y, x) D = (y - 1, x)
+            peek (y, x) L = (y, x - 1)
+
     exec (CIdent i) = case L.lookup i env of
       Nothing -> Fail "Rule doesn't exist"
       Just x  -> Ok (ArrowState space pos heading (x++stack))
 
--- data Pat      = PEmpty | PLambda | PDebris | PAsteroid | PBoundary | PUnderscore deriving (Show)
--- data Contents = Empty  | Lambda  | Debris  | Asteroid  | Boundary deriving (Eq, Ord, Show)
-
-{-
-
-handleCases :: Dir -> Alts -> Heading -> Stack
-handleCases dir [] h = Fail "No matching case."
-handleCases dir ((Alt pat cmds):alts) h
-  | handleCase pat = Ok (cmds ++ stack)
-  | otherwise      = handleCases dir alts h
-  where
-    handleCase Empty       = PEmpty
-    handleCase Lambda      = PLambda
-    handleCase Debris      = PDebris
-    handleCase Asteroid    = PAsteroid
-    handleCase Boundary    = PBoundary
-    handleCase PUnderscore = undefined
--}
 mark :: Space -> Pos -> Space
 mark space pos = L.insert pos Lambda space 
 
@@ -187,8 +155,8 @@ move space p@(y,x) R = if checkAvaibleSpace space (y  ,x+1) then (y  ,x+1) else 
 move space p@(y,x) L = if checkAvaibleSpace space (y  ,x-1) then (y  ,x-1) else p
 move space p@(y,x) D = if checkAvaibleSpace space (y-1,x  ) then (y-1,x  ) else p
 
-take :: Space -> Pos -> Space
-take space pos = if checkAvaibleSpace space pos then L.insert pos Empty space else space
+updateSpace :: Space -> Pos -> Space
+updateSpace space pos = if checkAvaibleSpace space pos then L.insert pos Empty space else space
 
 checkAvaibleSpace :: Space -> Pos -> Bool
 checkAvaibleSpace space pos = case L.lookup pos space of
@@ -196,6 +164,11 @@ checkAvaibleSpace space pos = case L.lookup pos space of
   Just Lambda -> True
   Just Debris -> True
   _           -> False
+
+getContent :: Space -> Pos -> Contents
+getContent space pos = case L.lookup pos space of
+  Just x  -> x
+  Nothing -> Boundary
 
 -- Execise 10
 {-
@@ -220,18 +193,96 @@ The practice of placing the recursion call on the end of the function and optimi
 
 -}
 
-
 -- Execise 11
 
---interactive :: Environment -> ArrowState -> IO()
-interactive = do
-  putStrLn "Give input bitch."
-  input <- getLine
-  putStrLn ("This is your input: " ++ input ++ " bitch.")
+interactive :: Environment -> ArrowState -> IO ()
+interactive env as@(ArrowState space pos heading stack) = do
+  putStrLn (printSpace space)
+  stepped <- return $ step env as
+
+  case stepped of
+    Fail x     -> putStrLn x
+    Done s _ _ -> putStrLn (printSpace s)
+    Ok x       -> do
+      putStrLn "Give input bitch."
+      input <- getLine
+      putStrLn ("This is your input: " ++ input ++ ", bye bitch.")
+
+      case input of
+        "quit"    -> putStrLn "Doei bitch."
+        otherwise -> interactive env x
 
 batch :: Environment -> ArrowState -> (Space, Pos, Heading)
-batch = undefined
+batch env as = case step env as of
+  Fail _     -> (L.empty, (0,0), U)
+  Done s p h -> (s, p, h)
+  Ok x       -> batch env x
 
---main :: IO Char
---main = putStrLn $ printSpace (fromList [((0,0), Empty), ((0,1), Asteroid), ((1,0), Debris), ((1,1), Debris), ((2,0), Debris), ((2,1), Debris), ((4,0), Debris), ((5,0), Debris), ((6,0), Debris), ((7,0), Debris), ((8,0), Debris), ((9,0), Debris), ((10,0), Debris), ((11,0), Debris), ((12,0), Debris), ((13,0), Debris), ((14,0), Debris), ((15,0), Debris), ((16,0), Debris), ((17,0), Debris), ((18,0), Debris), ((19,0), Debris), ((20,0), Debris), ((21,0), Debris), ((22,0), Debris), ((23,0), Debris), ((24,0), Debris), ((25,0), Debris), ((26,0), Debris), ((27,0), Debris), ((28,0), Debris)])
-main = interactive
+main = do
+  putStrLn "Written by Stein Bout (6987729) and Nick Swaerdens (6977960)."
+  
+  env               <- getArrow
+  space             <- getSpace
+  putStrLn (printSpace space)
+  pos               <- getPos
+  heading           <- getHeading
+  as                <- return $ ArrowState space pos heading (getStack env)
+
+  putStrLn "Please select interactive or batch mode: "
+  input <- getLine
+  case input of
+    "interactive" -> interactive env as
+    "batch"       -> putStrLn $ show (batch env as)
+    _             -> putStrLn "Error, invalid mode!"
+
+getHeading :: IO Heading
+getHeading = do
+  putStrLn "Please provide starting Heading.\nPlease use one of the following options; u,d,r,l\n:"
+  heading <- getLine 
+  case heading of 
+    "d" -> return D 
+    "u" -> return U
+    "l" -> return L
+    "r" -> return R
+
+parsePos :: Parser Char Pos
+parsePos = (,) <$> (symbol '(' *> natural) <* symbol ',' <*> natural <* symbol ')'
+
+getPos :: IO Pos
+getPos = do
+  putStrLn "Please provide the start position (y,x): "
+  tuple <- getLine
+  return $ fst $ head $ parse parsePos tuple
+
+getSpace :: IO Space
+getSpace = do 
+  putStrLn "Please provide (relative) path to the .space file: "
+  relativePathSpace <- getLine
+  absolutePathSpace <- (mappend getCurrentDirectory (pure relativePathSpace))
+  fileContentsSpace <- readFile absolutePathSpace
+  (traceShow $ parse parseSpace fileContentsSpace) return $ fst $ head $ parse parseSpace fileContentsSpace
+
+getArrow :: IO Environment
+getArrow = do
+  putStrLn "Please provide (relative) path to the .arrow file: "
+  relativePathArrow <- getLine
+  absolutePathArrow <- (mappend getCurrentDirectory (pure relativePathArrow))
+  fileContentsArrow <- readFile absolutePathArrow
+  return $ toEnvironment fileContentsArrow
+
+getStack :: Environment -> Stack
+getStack env = case L.lookup "start" env of
+  Just x  -> x
+  Nothing -> [] 
+{-
+  as  <- (ArrowState (fromList
+           [((0,0), Empty)
+           ,((0,1), Empty)
+           ,((0,2), Debris)
+           ,((1,0), Lambda)
+           ,((1,1), Empty)
+           ,((1,2), Debris)
+           ,((2,0), Empty)
+           ,((2,1), Lambda)
+           ,((2,2), Boundary)]) (0,0) R [Go, Go, Mark])
+-}

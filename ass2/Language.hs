@@ -9,7 +9,7 @@ data Cmd     = Go | Take | Mark | CNothing | Turn Dir | Case Dir Alts | CIdent I
 data Dir     = Left | Right | Front deriving (Show)
 type Alts    = [Alt]
 data Alt     = Alt Pat Cmds deriving (Show)
-data Pat     = PEmpty | PLambda | PDebris | PAsteroid | PBoundary | PUnderscore deriving (Show)
+data Pat     = Empty | Lambda | Debris | Asteroid | Boundary | Underscore deriving (Eq, Ord, Show)
 
 type Ident   = String
 
