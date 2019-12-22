@@ -8,7 +8,7 @@ module Main where
 
 import Prelude hiding ((<$>), (<$), (<*>), (<*), (*>), Left, Right)
 import ParseLib.Abstract
-import Data.Map (Map, foldrWithKey, fromList)
+import Data.Map (Map, foldrWithKey)
 import qualified Data.Map as L
 import Control.Monad (replicateM)
 import Data.Char (isSpace)
@@ -17,9 +17,6 @@ import System.Directory
 import Language
 import Scanner
 import Parser
-
-import Debug.Trace
-
 
 type Space    = Map Pos Contents
 type Size     = Int
@@ -52,7 +49,7 @@ contentsTable =
 
 --type Ident = () defined in Language.hs
 type Commands    = Cmds
-data Heading     = R | L | U | D deriving (Show) --Right Left Up Down
+data Heading     = R | L | U | D --Right Left Up Down
 type Environment = Map Ident Commands
 
 type Stack       =  Commands
@@ -93,7 +90,7 @@ printSpace sp = show maxKeys ++ "\n" ++ printBoard sp
 -- Execise 8
 
 toEnvironment :: String -> Environment
-toEnvironment   str  = (traceShow $ parseProgram $ alexScanTokens str) makeEnv $ check' $ parseProgram $ alexScanTokens str
+toEnvironment   str  = makeEnv $ check' $ parseProgram $ alexScanTokens str
   where check'  p = if check p then p else error ("Error in generating environment. Logic error in interpreting tokens.")
         makeEnv p = foldr (\(Rule ident cmds) env -> L.insert ident cmds env) L.empty p
 
@@ -101,7 +98,7 @@ toEnvironment   str  = (traceShow $ parseProgram $ alexScanTokens str) makeEnv $
 
 step :: Environment -> ArrowState -> Step
 step _   (ArrowState space pos heading [])        = Done space pos heading --Stack empty -> Done
-step env (ArrowState space pos heading (s:stack)) = (traceShow $ stack) (traceShow $ heading) (traceShow $ pos) (traceShow $ s) exec s
+step env (ArrowState space pos heading (s:stack)) = exec s
   where
     exec Go         = Ok (ArrowState space                   (move space pos heading) heading          stack)
     exec Take       = Ok (ArrowState (updateSpace space pos) pos                      heading          stack)
@@ -194,7 +191,7 @@ The practice of placing the recursion call on the end of the function and optimi
 -- Execise 11
 
 interactive :: Environment -> ArrowState -> IO ()
-interactive env as@(ArrowState space pos heading stack) = do
+interactive env as@(ArrowState space _ _ _) = do
   putStrLn (printSpace space)
   stepped <- return $ step env as
 
@@ -202,36 +199,19 @@ interactive env as@(ArrowState space pos heading stack) = do
     Fail x     -> putStrLn x
     Done s _ _ -> putStrLn (printSpace s)
     Ok x       -> do
-      putStrLn "Give input bitch."
+      putStrLn "Type \"Terminate\", to quit."
       input <- getLine
-      putStrLn ("This is your input: " ++ input ++ ", bye bitch.")
 
       case input of
-        "quit"    -> putStrLn "Doei bitch."
-        otherwise -> interactive env x
+        "Terminate" -> putStrLn "                       ______\n                     <((((((\\\\\\\n                     /      . }\\\n                     ;--..--._|}\n  (\\                 '--/\\--'  )\n   \\\\                | '-'  :'|\n    \\\\               . -==- .-|\n     \\\\               \\.__.'   \\--._\n     [\\\\          __.--|       //  _/'--.\n     \\ \\\\       .'-._ ('-----'/ __/      \\\n      \\ \\\\     /   __>|      | '--.       |\n       \\ \\\\   |   \\   |     /    /       /\n        \\ '\\ /     \\  |     |  _/       /\n         \\  \\       \\ |     | /        /\n          \\  \\      \\        /\n\n                     Hasta la vista, baby."
+        _           -> interactive env x
 
+     
 batch :: Environment -> ArrowState -> (Space, Pos, Heading)
 batch env as = case step env as of
   Fail _     -> (L.empty, (0,0), U)
   Done s p h -> (s, p, h)
   Ok x       -> batch env x
-
-main = do
-  putStrLn "Written by Stein Bout (6987729) and Nick Swaerdens (6977960)."
-  
-  env               <- getArrow
-  space             <- getSpace
-  putStrLn (printSpace space)
-  pos               <- getPos
-  heading           <- getHeading
-  as                <- return $ ArrowState space pos heading (getStack env)
-
-  putStrLn "Please select interactive or batch mode: "
-  input <- getLine
-  case input of
-    "interactive" -> interactive env as
-    "batch"       -> putStrLn $ (\(s, _, _) -> printSpace s) (batch env as)
-    _             -> putStrLn "Error, invalid mode!"
 
 getHeading :: IO Heading
 getHeading = do
@@ -249,7 +229,7 @@ parsePos = (,) <$> (symbol '(' *> natural) <* symbol ',' <*> natural <* symbol '
 
 getPos :: IO Pos
 getPos = do
-  putStrLn "Please provide the start position (y,x): "
+  putStrLn "Please provide the start position (y,x), with the (): "
   tuple <- getLine
   return $ fst $ head $ parse parsePos tuple
 
@@ -273,3 +253,21 @@ getStack :: Environment -> Stack
 getStack env = case L.lookup "start" env of
   Just x  -> x
   Nothing -> []
+
+main :: IO ()
+main = do
+  putStrLn "Written by Stein Bout (6987729) and Nick Swaerdens (6977960)."
+  
+  env               <- getArrow
+  space             <- getSpace
+  putStrLn (printSpace space)
+  pos               <- getPos
+  heading           <- getHeading
+  as                <- return $ ArrowState space pos heading (getStack env)
+
+  putStrLn "Please select interactive or batch mode: "
+  input <- getLine
+  case input of
+    "interactive" -> interactive env as
+    "batch"       -> putStrLn $ (\(s, _, _) -> printSpace s) (batch env as)
+    _             -> putStrLn "Error, invalid mode!"
