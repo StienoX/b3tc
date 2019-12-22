@@ -6,7 +6,7 @@ Stein Bout     - 6987729
 
 module Main where
 
-import Prelude hiding ((<*), (<$))
+import Prelude hiding ((<*), (<$), Left, Right, take)
 import ParseLib.Abstract
 import Data.Map (Map, foldrWithKey, fromList)
 import qualified Data.Map as L
@@ -47,7 +47,7 @@ contentsTable =
 
 --type Ident = () defined in Language.hs
 type Commands    = Cmds
-type Heading     = R | L | U | D --Right Left Up Down
+data Heading     = R | L | U | D --Right Left Up Down
 type Environment = Map Ident Commands
 
 type Stack       =  Commands
@@ -131,25 +131,37 @@ data Contents = Empty | Lambda | Debris | Asteroid | Boundary
 -}
 
 step :: Environment -> ArrowState -> Step
-
-step _ (ArrowState space pos heading []) = Done space pos heading --Stack empty -> Done
+step _ (ArrowState space pos heading [])          = Done space pos heading --Stack empty -> Done
 step env (ArrowState space pos heading (s:stack)) = exec s
   where 
-    exec Go       = Ok (ArrowState space            (move space pos heading) heading          stack)
-    exec Take     = Ok (ArrowState (take space pos) pos                      heading          stack)
-    exec Mark     = Ok (ArrowState (mark space pos) pos                      heading          stack)
-    exec CNothing = Ok (ArrowState space            pos                      heading          stack)
-    exec Turn d   = Ok (ArrowState space            pos                      (turn d heading) stack)
-    exec Case d a = 
-    exec CIdent i =
-  
-rule :: Step -> Environment -> Step
-rule 
+    exec Go         = Ok (ArrowState space            (move space pos heading) heading          stack)
+    exec Take       = Ok (ArrowState (take space pos) pos                      heading          stack)
+    exec Mark       = Ok (ArrowState (mark space pos) pos                      heading          stack)
+    exec CNothing   = Ok (ArrowState space            pos                      heading          stack)
+    exec (Turn d)   = Ok (ArrowState space            pos                      (turn d heading) stack)
+    exec (Case d a) = undefined
+    exec (CIdent i) = case L.lookup i env of
+      Nothing -> Fail "Rule doesn't exist"
+      Just x  -> Ok (ArrowState space pos heading (x++stack))
 
-handleCases :: Dir -> Heading ->
-handleCases = undefined
+-- data Pat      = PEmpty | PLambda | PDebris | PAsteroid | PBoundary | PUnderscore deriving (Show)
+-- data Contents = Empty  | Lambda  | Debris  | Asteroid  | Boundary deriving (Eq, Ord, Show)
+
+{-
+
+handleCases :: Dir -> Alts -> Heading -> Stack
+handleCases dir [] h = Fail "No matching case."
+handleCases dir ((Alt pat cmds):alts) h
+  | handleCase pat = Ok (cmds ++ stack)
+  | otherwise      = handleCases dir alts h
   where
-
+    handleCase Empty       = PEmpty
+    handleCase Lambda      = PLambda
+    handleCase Debris      = PDebris
+    handleCase Asteroid    = PAsteroid
+    handleCase Boundary    = PBoundary
+    handleCase PUnderscore = undefined
+-}
 mark :: Space -> Pos -> Space
 mark space pos = L.insert pos Lambda space 
 
@@ -170,21 +182,56 @@ turn Right R   = D
 turn _ heading = heading
 
 move :: Space -> Pos -> Heading -> Pos
-move space (y,x) U = if checkAvaibleSpace (y+1,x  ) then (y+1,x  )
-move space (y,x) R = if checkAvaibleSpace (y  ,x+1) then (y  ,x+1)
-move space (y,x) L = if checkAvaibleSpace (y  ,x-1) then (y  ,x-1)
-move space (y,x) D = if checkAvaibleSpace (y-1,x  ) then (y-1,x  )
+move space p@(y,x) U = if checkAvaibleSpace space (y+1,x  ) then (y+1,x  ) else p
+move space p@(y,x) R = if checkAvaibleSpace space (y  ,x+1) then (y  ,x+1) else p
+move space p@(y,x) L = if checkAvaibleSpace space (y  ,x-1) then (y  ,x-1) else p
+move space p@(y,x) D = if checkAvaibleSpace space (y-1,x  ) then (y-1,x  ) else p
 
 take :: Space -> Pos -> Space
 take space pos = if checkAvaibleSpace space pos then L.insert pos Empty space else space
 
 checkAvaibleSpace :: Space -> Pos -> Bool
-checkAvaibleSpace space pos = case lookup pos space of
+checkAvaibleSpace space pos = case L.lookup pos space of
   Just Empty  -> True
   Just Lambda -> True
   Just Debris -> True
   _           -> False
 
-main :: IO ()
+-- Execise 10
+{-
+When recursive calls are at the end of the command sequence the stack doesn't grow.
+Because the other instructions are consumed when the next recursive call is called.
+This does not happen when the recursive call is in front of other instructions.
+
+For example take these two functions:
+1. (Instruction) (Recursive Call)
+2. (Recursive Call) (Instruction)
+
+1. Has the recursion call on the tail/end
+2. Has the recursion call on the front
+
+When we do the recursion call once the stack looks the following:
+1. (Instruction) (Recursive Call)
+2. (Recursive Call) (Instruction) (Instruction)
+
+When we continue this trend we can notice that the stack grows bigger when the recursion call is not on the end.
+The deeper we are in the recusive call the bigger the stack becomes.
+The practice of placing the recursion call on the end of the function and optimiziation that is gained is called tail recursion.
+
+-}
+
+
+-- Execise 11
+
+--interactive :: Environment -> ArrowState -> IO()
+interactive = do
+  putStrLn "Give input bitch."
+  input <- getLine
+  putStrLn ("This is your input: " ++ input ++ " bitch.")
+
+batch :: Environment -> ArrowState -> (Space, Pos, Heading)
+batch = undefined
+
+--main :: IO Char
 --main = putStrLn $ printSpace (fromList [((0,0), Empty), ((0,1), Asteroid), ((1,0), Debris), ((1,1), Debris), ((2,0), Debris), ((2,1), Debris), ((4,0), Debris), ((5,0), Debris), ((6,0), Debris), ((7,0), Debris), ((8,0), Debris), ((9,0), Debris), ((10,0), Debris), ((11,0), Debris), ((12,0), Debris), ((13,0), Debris), ((14,0), Debris), ((15,0), Debris), ((16,0), Debris), ((17,0), Debris), ((18,0), Debris), ((19,0), Debris), ((20,0), Debris), ((21,0), Debris), ((22,0), Debris), ((23,0), Debris), ((24,0), Debris), ((25,0), Debris), ((26,0), Debris), ((27,0), Debris), ((28,0), Debris)])
-main = undefined
+main = interactive
