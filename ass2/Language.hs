@@ -40,28 +40,12 @@ Sources:
 type AlgProgram program rule cmd alt id = ( [rule] -> program        -- Program
                                           , id     -> [cmd] -> rule  -- Rule
                                           , (cmd, cmd, cmd, cmd, Dir -> cmd, Dir -> [alt] -> cmd, id -> cmd) -- Cmd
-                                          , Dir                      -- Dir
                                           , Pat    -> [cmd] -> alt   -- Alt
-                                          , Pat                      -- Pat
                                           , String -> id             -- Identifier
                                         )
 
-{-
 foldProgram :: AlgProgram program rule cmd alt id -> Program -> program
-foldProgram (program', rule', cmd', turn', case', cident', alt', string') = foldProgram
-  where
-    foldProgram (x:xs)            = program' (foldRule x) (foldProgram xs) --Program
-    foldRule    ident cmds        = rule' (foldIdent ident) (map foldCmd cmds) --Rule
-    foldCmd     (Case dir alts)   = case' dir $ map foldAlt alts --Case
-    foldCmd     (Turn dir)        = turn' dir
-    foldCmd     (CIdent ident)    = cident' (foldIdent ident)
-    foldCmd     _                 = cmd'
-    foldAlt     pat cmds          = alt' pat $ map foldCmd cmds
-    foldIdent   s                 = string' s
--}
-
-foldProgram :: AlgProgram program rule cmd alt id -> Program -> program
-foldProgram (program', rule', (go', take', mark', nothing', turn', case', cident'), dir', alt', pat', ident') = fold
+foldProgram (program', rule', (go', take', mark', nothing', turn', case', cident'), alt', ident') = fold
   where
     fold        rules             = program' $ map foldRule rules
     foldRule    (Rule ident cmds) = rule' (foldIdent ident) $ map foldCmd cmds
@@ -74,4 +58,3 @@ foldProgram (program', rule', (go', take', mark', nothing', turn', case', cident
     foldCmd     CNothing          = nothing'
     foldAlt     (Alt pat cmds)    = alt' pat $ map foldCmd cmds
     foldIdent   s                 = ident' s
-

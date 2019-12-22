@@ -13,6 +13,8 @@ import qualified Data.Map as L
 import Control.Monad (replicateM)
 import Data.Char (isSpace)
 
+import Data.List (nub)
+
 import System.Directory
 import Language
 import Scanner
@@ -21,7 +23,6 @@ import Parser
 type Space    = Map Pos Contents
 type Size     = Int
 type Pos      = (Int, Int)
---data Contents = Empty | Lambda | Debris | Asteroid | Boundary deriving (Eq, Ord, Show)
 type Contents = Pat
 
 parseSpace :: Parser Char Space
@@ -61,15 +62,49 @@ data Step  =  Done  Space Pos Heading
 
 -- Exercise 6
 check :: Program -> Bool
-check p = checkUndefined p
-       && checkStartRule p
-       && checkDupRules p
-       && checkPatMatch p
+check p = checkUndefined
+       && checkStartRule
+       && checkDupRules
+       && checkPatMatch
   where
-    checkUndefined _ = True
-    checkStartRule _ = True
-    checkDupRules  _ = True
-    checkPatMatch  _ = True
+    allRuleIds = getRuleIds p
+    uniques    = nub allRuleIds
+
+    checkUndefined = checkMatch uniques (getCIds p)
+    checkStartRule = elem "start" allRuleIds
+    checkDupRules  = length uniques == length allRuleIds
+    checkPatMatch  = checkPatMatch' (getPatterns p)
+      where checkPatMatch' :: [[Pat]] -> Bool
+            checkPatMatch' []      = True
+            checkPatMatch' (x:xs)  | elem Underscore x = checkPatMatch' xs
+                                   | length x == 5     = checkPatMatch' xs
+                                   | otherwise         = False
+
+checkMatch :: [String] -> [String] -> Bool
+checkMatch _ []        = True
+checkMatch ys (x:xs)   | elem x ys = checkMatch ys xs
+                       | otherwise = False
+
+getCIds :: Program -> [String]
+getCIds = filter (/="") . concat . foldProgram ( id
+                               , (\_ x -> x)
+                               , ([], [], [], [], (\_ -> []), (\_ _ -> []), id)
+                               , (\_ cmds -> cmds)
+                               , id)
+                             
+getRuleIds :: Program -> [String]
+getRuleIds = foldProgram ( id
+                         , (\x _ -> x)
+                         , ((), (), (), (), (\_ -> ()), (\_ _ -> ()), (\_ -> ()))
+                         , (\_ _ -> ())
+                         , id)
+
+getPatterns :: Program -> [[Pat]]
+getPatterns = filter (/=[]) . concat . foldProgram ( id
+                                   , (\_ x -> x)
+                                   , ([], [], [], [], (\_ -> []), (\_ alts -> alts), (\_ -> []))
+                                   , (\pat _ -> pat)
+                                   , id)
 
 -- Exercise 7
 printSpace :: Space -> String
@@ -90,14 +125,14 @@ printSpace sp = show maxKeys ++ "\n" ++ printBoard sp
 -- Execise 8
 
 toEnvironment :: String -> Environment
-toEnvironment   str  = makeEnv $ check' $ parseProgram $ alexScanTokens str
+toEnvironment     = makeEnv . check' . parseProgram . alexScanTokens
   where check'  p = if check p then p else error ("Error in generating environment. Logic error in interpreting tokens.")
         makeEnv p = foldr (\(Rule ident cmds) env -> L.insert ident cmds env) L.empty p
 
 -- Execise 9
 
 step :: Environment -> ArrowState -> Step
-step _   (ArrowState space pos heading [])        = Done space pos heading --Stack empty -> Done
+step _   (ArrowState space pos heading [])        = Done space pos heading
 step env (ArrowState space pos heading (s:stack)) = exec s
   where
     exec Go         = Ok (ArrowState space                   (move space pos heading) heading          stack)
@@ -182,7 +217,7 @@ When we do the recursion call once the stack looks the following:
 1. (Instruction) (Recursive Call)
 2. (Recursive Call) (Instruction) (Instruction)
 
-When we continue this trend we can notice that the stack grows bigger when the recursion call is not on the end.
+When we continue this trend we notice that the stack grows bigger when the recursion call is not on the end.
 The deeper we are in the recusive call the bigger the stack becomes.
 The practice of placing the recursion call on the end of the function and optimiziation that is gained is called tail recursion.
 
@@ -235,16 +270,16 @@ getPos = do
 
 getSpace :: IO Space
 getSpace = do 
-  putStrLn "Please provide (relative) path to the .space file: "
-  relativePathSpace <- return "/examples/AddInput2.space"--getLine
+  putStrLn "Please provide (relative) path to the .space file, for example /examples/AddInput.space : "
+  relativePathSpace <- getLine
   absolutePathSpace <- (mappend getCurrentDirectory (pure relativePathSpace))
   fileContentsSpace <- readFile absolutePathSpace
   return $ fst $ head $ parse parseSpace fileContentsSpace
 
 getArrow :: IO Environment
 getArrow = do
-  putStrLn "Please provide (relative) path to the .arrow file: "
-  relativePathArrow <- return "/examples/Add.arrow"--getLine
+  putStrLn "Please provide (relative) path to the .arrow file, for example /examples/Add.arrow : "
+  relativePathArrow <- getLine
   absolutePathArrow <- (mappend getCurrentDirectory (pure relativePathArrow))
   fileContentsArrow <- readFile absolutePathArrow
   return $ toEnvironment fileContentsArrow

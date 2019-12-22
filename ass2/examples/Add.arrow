@@ -17,4 +17,3 @@ secondArg   -> case left of
                  Lambda  ->  go, secondArg, mark, go;
                  _       ->  turnAround, return, turn left, go, turn left
                end.
-
