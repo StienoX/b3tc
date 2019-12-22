@@ -93,7 +93,7 @@ printSpace sp = show maxKeys ++ "\n" ++ printBoard sp
 -- Execise 8
 
 toEnvironment :: String -> Environment
-toEnvironment     = makeEnv . check' . parseProgram . alexScanTokens
+toEnvironment   str  = (traceShow $ parseProgram $ alexScanTokens str) makeEnv $ check' $ parseProgram $ alexScanTokens str
   where check'  p = if check p then p else error ("Error in generating environment. Logic error in interpreting tokens.")
         makeEnv p = foldr (\(Rule ident cmds) env -> L.insert ident cmds env) L.empty p
 
@@ -101,8 +101,8 @@ toEnvironment     = makeEnv . check' . parseProgram . alexScanTokens
 
 step :: Environment -> ArrowState -> Step
 step _   (ArrowState space pos heading [])        = Done space pos heading --Stack empty -> Done
-step env (ArrowState space pos heading (s:stack)) = exec s
-  where 
+step env (ArrowState space pos heading (s:stack)) = (traceShow $ stack) (traceShow $ heading) (traceShow $ pos) (traceShow $ s) exec s
+  where
     exec Go         = Ok (ArrowState space                   (move space pos heading) heading          stack)
     exec Take       = Ok (ArrowState (updateSpace space pos) pos                      heading          stack)
     exec Mark       = Ok (ArrowState (mark space pos)        pos                      heading          stack)
@@ -111,20 +111,15 @@ step env (ArrowState space pos heading (s:stack)) = exec s
     exec (Case d a) = handleCases d a
       where
         handleCases :: Dir -> Alts -> Step
-        handleCases _ []                        = Fail "No matching case."
-        handleCases _ ((Alt Underscore cmds):_) = Ok (ArrowState space pos heading (cmds ++ stack)) 
-        handleCases dir ((Alt pat cmds):alts)   = case ele of
-          Just x | (x == pat) -> Ok (ArrowState space pos heading (cmds ++ stack))
-          _                   -> handleCases dir alts
+        handleCases _ []                          = Fail "No matching case."
+        handleCases _   ((Alt Underscore cmds):_) = Ok (ArrowState space pos heading (cmds ++ stack)) 
+        handleCases dir ((Alt pat cmds):alts)     = case ele of
+          Nothing | (pat == Boundary) -> Ok (ArrowState space pos heading (cmds ++ stack))
+          Just x  | (x == pat)        -> Ok (ArrowState space pos heading (cmds ++ stack))
+          _                           -> handleCases dir alts
           where
             ele :: Maybe Contents
             ele = L.lookup (peek pos (turn dir heading)) space
-
-            peek :: Pos -> Heading -> Pos
-            peek (y, x) U = (y + 1, x)
-            peek (y, x) R = (y, x + 1)
-            peek (y, x) D = (y - 1, x)
-            peek (y, x) L = (y, x - 1)
 
     exec (CIdent i) = case L.lookup i env of
       Nothing -> Fail "Rule doesn't exist"
@@ -149,11 +144,14 @@ turn Right R   = D
 --Turn forward lol
 turn _ heading = heading
 
+peek :: Pos -> Heading -> Pos
+peek (y, x) U = (y - 1, x)
+peek (y, x) R = (y, x + 1)
+peek (y, x) D = (y + 1, x)
+peek (y, x) L = (y, x - 1)
+
 move :: Space -> Pos -> Heading -> Pos
-move space p@(y,x) U = if checkAvaibleSpace space (y+1,x  ) then (y+1,x  ) else p
-move space p@(y,x) R = if checkAvaibleSpace space (y  ,x+1) then (y  ,x+1) else p
-move space p@(y,x) L = if checkAvaibleSpace space (y  ,x-1) then (y  ,x-1) else p
-move space p@(y,x) D = if checkAvaibleSpace space (y-1,x  ) then (y-1,x  ) else p
+move space p h = if checkAvaibleSpace space (peek p h) then (peek p h) else p
 
 updateSpace :: Space -> Pos -> Space
 updateSpace space pos = if checkAvaibleSpace space pos then L.insert pos Empty space else space
@@ -232,7 +230,7 @@ main = do
   input <- getLine
   case input of
     "interactive" -> interactive env as
-    "batch"       -> putStrLn $ show (batch env as)
+    "batch"       -> putStrLn $ (\(s, _, _) -> printSpace s) (batch env as)
     _             -> putStrLn "Error, invalid mode!"
 
 getHeading :: IO Heading
@@ -244,6 +242,7 @@ getHeading = do
     "u" -> return U
     "l" -> return L
     "r" -> return R
+    _   -> error "Not a valid direction"
 
 parsePos :: Parser Char Pos
 parsePos = (,) <$> (symbol '(' *> natural) <* symbol ',' <*> natural <* symbol ')'
@@ -257,15 +256,15 @@ getPos = do
 getSpace :: IO Space
 getSpace = do 
   putStrLn "Please provide (relative) path to the .space file: "
-  relativePathSpace <- getLine
+  relativePathSpace <- return "/examples/AddInput2.space"--getLine
   absolutePathSpace <- (mappend getCurrentDirectory (pure relativePathSpace))
   fileContentsSpace <- readFile absolutePathSpace
-  (traceShow $ parse parseSpace fileContentsSpace) return $ fst $ head $ parse parseSpace fileContentsSpace
+  return $ fst $ head $ parse parseSpace fileContentsSpace
 
 getArrow :: IO Environment
 getArrow = do
   putStrLn "Please provide (relative) path to the .arrow file: "
-  relativePathArrow <- getLine
+  relativePathArrow <- return "/examples/Add.arrow"--getLine
   absolutePathArrow <- (mappend getCurrentDirectory (pure relativePathArrow))
   fileContentsArrow <- readFile absolutePathArrow
   return $ toEnvironment fileContentsArrow
@@ -273,16 +272,4 @@ getArrow = do
 getStack :: Environment -> Stack
 getStack env = case L.lookup "start" env of
   Just x  -> x
-  Nothing -> [] 
-{-
-  as  <- (ArrowState (fromList
-           [((0,0), Empty)
-           ,((0,1), Empty)
-           ,((0,2), Debris)
-           ,((1,0), Lambda)
-           ,((1,1), Empty)
-           ,((1,2), Debris)
-           ,((2,0), Empty)
-           ,((2,1), Lambda)
-           ,((2,2), Boundary)]) (0,0) R [Go, Go, Mark])
--}
+  Nothing -> []
