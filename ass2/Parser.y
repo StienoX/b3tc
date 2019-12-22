@@ -84,11 +84,11 @@ Ident :: { String }
 Ident : string               { $1 }
 
 {
-    
+
 -- Happy parse error.
 parseError :: [Token] -> a
 parseError = error "Parse error, happy niet blij."
 
-main = getContents >>= \_ -> return $ parseProgram . alexScanTokens
+--main = getContents >>= \_ -> return $ parseProgram . alexScanTokens
 
 }
