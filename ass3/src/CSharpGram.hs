@@ -3,6 +3,7 @@ module CSharpGram where
 import ParseLib.Abstract hiding (braced, bracketed, parenthesised, (<$>), (<$), (<*>), (<*), (*>), sequence)
 import CSharpLex
 
+import Debug.Trace
 
 data Class = Class Token [Member]
     deriving Show
@@ -41,10 +42,20 @@ braced        p = pack (symbol COpen) p (symbol CClose)
 pExprSimple :: Parser Token Expr
 pExprSimple =  ExprConst <$> sConst
            <|> ExprVar   <$> sLowerId
-           <|> parenthesised pExpr
+           <|> parenthesised pExpr1
 
 pExpr :: Parser Token Expr
 pExpr = chainr pExprSimple (ExprOper <$> sOperator)
+lol = (,) <$> sOperator <*> pExprSimple
+
+-- chainr :: Parser s a -> Parser s (a -> a -> a) -> Parser s a 
+
+pExpr0 = undefined
+
+pExpr1 :: Parser Token Expr
+pExpr1 = (\x y -> foldl (insertToken) x y) <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple)
+
+--pExpr =  . (,) <$> Operator "+" <*> pExprSimple
 
 {-
 Stap 1:
@@ -73,34 +84,40 @@ als laagere prio zet hem er bove anders door gaan naar volgende in de boom. geen
 -- in a + z
 
 -- x = 5 * 5 + 9 / 5 + 7
-testExpr  = ExprOper (Operator "*") (ExprConst (ConstInt 5)) (
+testExpr = ExprOper (Operator "=") (ExprConst (ConstChar 'v')) (
+            ExprOper (Operator "*") (ExprConst (ConstInt 5)) (
               ExprOper (Operator "+") (ExprConst (ConstInt 5)) (
                 ExprOper (Operator "/") (ExprConst (ConstInt 9)) ( 
-                  ExprOper (Operator "+") (ExprConst (ConstInt 5)) (ExprConst (ConstInt 7)))))
+                  ExprOper (Operator "+") (ExprConst (ConstInt 5)) (ExprConst (ConstInt 7))))))
+
+-- a = b = 1
+testExpr2 = ExprOper (Operator "=") (ExprConst (ConstChar 'a')) (
+              ExprOper (Operator "=") (ExprConst (ConstChar 'b')) (ExprConst (ConstInt 1)))
+
+-- a + b + c
+testExpr3 = ExprOper (Operator "+") (ExprConst (ConstChar 'a')) (
+              ExprOper (Operator "+") (ExprConst (ConstChar 'b')) (ExprConst (ConstChar 'c')))
+
+--mergeExpr :: Expr -> Token -> Expr -> Expr
+--mergeExpr expr1 t expr2 = $ ExprOper t (sortExpr expr1) (sortExpr expr2)
 
 sortExpr :: Expr -> Expr
 sortExpr (ExprOper op lh@(ExprOper _ _ _) rh@(ExprOper _ _ _)) = jantje (ExprOper op (sortExpr lh) (sortExpr rh))
 sortExpr (ExprOper op lh                  rh@(ExprOper _ _ _)) = jantje (ExprOper op lh (sortExpr rh))
 sortExpr (ExprOper op lh@(ExprOper _ _ _) rh)                  = jantje (ExprOper op (sortExpr lh) rh)
-sortExpr (ExprOper op lh rh)                                   = ExprOper op lh rh
+sortExpr expr                                                  = expr
+
 
 printExpr :: Expr -> String
 printExpr (ExprOper (Operator x) lh@(ExprOper _ _ _) rh@(ExprOper _ _ _)) = (printExpr lh) ++ x ++ (printExpr rh)
-printExpr (ExprOper (Operator x) lh                  rh@(ExprOper _ _ _)) = (showExpr lh)  ++ x ++ (printExpr rh)
-printExpr (ExprOper (Operator x) lh@(ExprOper _ _ _) rh)                  = (printExpr lh) ++ x ++ (showExpr rh)
-printExpr (ExprOper (Operator x) lh rh)                                   = "(" ++ (showExpr lh)  ++ x ++ (showExpr rh)  ++ ")"
+printExpr (ExprOper (Operator x) lh                  rh@(ExprOper _ _ _)) = (showExpr  lh) ++ x ++ (printExpr rh)
+printExpr (ExprOper (Operator x) lh@(ExprOper _ _ _) rh)                  = (printExpr lh) ++ x ++ (showExpr  rh)
+printExpr (ExprOper (Operator x) lh rh)                                   = "(" ++ (showExpr lh) ++ x ++ (showExpr rh) ++ ")"
 
 showExpr :: Expr -> String
-showExpr (ExprConst (ConstInt x)) = show x
-showExpr x                        = show x
-
-type OperatorPrecedence = [[Token]]
-
-opOrd :: OperatorPrecedence
-opOrd = [
-    [Operator "+", Operator "-"],
-    [Operator "*", Operator "/"]
-  ]
+showExpr (ExprConst (ConstInt x))  = show x
+showExpr (ExprConst (ConstChar x)) = [x]
+showExpr x                         = show x
 
 
   -- data Expr = ExprConst  Token
@@ -108,47 +125,67 @@ opOrd = [
   -- | ExprOper   Token Expr Expr
   -- deriving Show
 
-insertToken :: Expr -> Expr -> Expr -> Expr
-insertToken expr operator value = undefined
 
+-- 5*3+2*4 => (5*3)+(2*4)
+--      +
+--   *     *
+-- 5   3 2   4
+-- 4+3*8*1 => 4+((3*8)*1)
+
+insertToken :: Expr -> (Token, Expr) -> Expr
+insertToken expr@(ExprOper prev_op lexpr rexpr) (op,v) | prev_op `smaller` op = ExprOper op expr v
+                                                       | otherwise            = ExprOper prev_op lexpr (insertToken rexpr (op,v))
+insertToken expr (op,v)                                = ExprOper op expr v
+
+tinsertToken :: Expr -> (Token, Expr) -> Expr
+tinsertToken expr@(ExprOper prev_op lexpr rexpr) (op,v) | prev_op `smaller` op = trace ("1:" ++ printExpr (ExprOper op expr v)) (ExprOper op expr v)
+                                                       | otherwise            = ExprOper prev_op lexpr (insertToken rexpr (op,v))
+tinsertToken expr (op,v)                                = trace ("2:" ++ printExpr (ExprOper op expr v)) (ExprOper op expr v)
 
 jantje :: Expr -> Expr
-jantje base@(ExprOper op lh (ExprOper op' lh' rh')) = 
+jantje expr@(ExprOper op lh (ExprOper op' lh' rh')) = 
   case compPrecedence op op' of
     True -> let newExpr = ExprOper op lh lh'
             in  ExprOper op' newExpr rh'
-    _    -> base
-jantje base = base
+    _    -> expr
+jantje expr = expr
 
--- List of operators and their presedences. [(Operator, Presedence)]
-opAssoc :: [(Token, Int)]
+data Assoc = LR | RL deriving (Eq, Show)
+
+-- List of operators, their presedences and whether they're associated to the left or right. [(Operator, Presedence, Assoc)]
+opAssoc :: [(Token, Int, Assoc)]
 opAssoc = [
-    (Operator "*",  1),
-    (Operator "/",  1),
-    (Operator "%",  1),
-    (Operator "+",  2),
-    (Operator "-",  2),
-    (Operator "<",  3),
-    (Operator "<=", 3),
-    (Operator ">",  3),
-    (Operator ">=", 3),
-    (Operator "==", 4),
-    (Operator "!=", 4),
-    (Operator "^",  5),
-    (Operator "&&", 6),
-    (Operator "||", 7),
-    (Operator "=",  8)
-    ]
+    (Operator "*",  1, LR),
+    (Operator "/",  1, LR),
+    (Operator "%",  1, LR),
+    (Operator "+",  2, LR),
+    (Operator "-",  2, LR),
+    (Operator "<",  3, LR),
+    (Operator "<=", 3, LR),
+    (Operator ">",  3, LR),
+    (Operator ">=", 3, LR),
+    (Operator "==", 4, LR),
+    (Operator "!=", 4, LR),
+    (Operator "^",  5, LR),
+    (Operator "&&", 6, LR),
+    (Operator "||", 7, LR),
+    (Operator "=",  9, RL)
+  ]
+
+smaller :: Token -> Token -> Bool
+smaller = compPrecedence
 
 -- Compares the precedence of two operators. 
 -- Returns True when the first operator has a higher presendence than the second, otherwise False.
 compPrecedence :: Token -> Token -> Bool
-compPrecedence op1 op2 = (getPrec op1 opAssoc) < (getPrec op2 opAssoc)
+compPrecedence op1 op2 = let (prec1, asoc1) = getPrec op1 opAssoc
+                             (prec2, asoc2) = getPrec op2 opAssoc
+                         in prec1 < prec2 || (op1 == op2 && asoc1 == LR)
   where
-    getPrec :: Token -> [(Token, Int)] -> Int
-    getPrec _ []  = 8
-    getPrec op@(Operator o) (((Operator x), i):xs)
-      | o == x    = i
+    getPrec :: Token -> [(Token, Int, Assoc)] -> (Int, Assoc)
+    getPrec _ []  = (8, LR)
+    getPrec op@(Operator o) (((Operator x), i, a):xs)
+      | o == x    = (i, a)
       | otherwise = getPrec op xs
 
 pMember :: Parser Token Member
