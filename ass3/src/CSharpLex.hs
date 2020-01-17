@@ -22,23 +22,7 @@ data Token = POpen    | PClose      -- parentheses     ()
            | ConstChar Char
            deriving (Eq, Show)
 
-{-
 
-type operatorPrecedence = [[Token]]
-type operatorSeperator  = [Token]
-
-opSep :: operatorSeperator
-opSep = [POpen, PClose, Semicolon]
-
-opOrd :: operatorPrecedence
-opOrd = [
-    [Operator "+", Operator "-"],
-    [Operator "*", Operator "/"]
-]
-
-operatorSort :: [Token] -> operatorPrecedence -> [Token]
-operatorSort a:opp:b:tokens opP@((x:xs):ys) | opp == x = 
--}
 
 keyword :: String -> Parser Char String
 keyword [] = succeed ""
