@@ -1,7 +1,9 @@
 module CSharpGram where
 
-import ParseLib.Abstract hiding (braced, bracketed, parenthesised, (<$>), (<$), (<*>), (<*), (*>), sequence)
+import ParseLib.Abstract hiding (braced, bracketed, parenthesised)
 import CSharpLex
+
+import Prelude hiding ((<$>), (<$), (<*>), (<*), (*>), sequence)
 
 data Class = Class Token [Member]
     deriving Show
@@ -21,6 +23,7 @@ data Stat = StatDecl   Decl
 data Expr = ExprConst  Token
           | ExprVar    Token
           | ExprOper   Token Expr Expr
+          | ExprMethod [Expr] -- Token [Expr]
           deriving Show
 
 data Decl = Decl Type Token
@@ -38,34 +41,35 @@ bracketed     p = pack (symbol SOpen) p (symbol SClose)
 braced        p = pack (symbol COpen) p (symbol CClose)
 
 pExprSimple :: Parser Token Expr
-pExprSimple =  ExprConst <$> sConst
-           <|> ExprVar   <$> sLowerId
-           <|> parenthesised pExpr1
+pExprSimple =  ExprConst  <$> sConst
+           <|> ExprVar    <$> sLowerId
+           <|> parenthesised pExpr
+           <|> ExprMethod <$> parenthesised (option (listOf pExprSimple (symbol Comma)) [])
 
 pExpr :: Parser Token Expr
-pExpr = (\x y -> foldl (insertToken) x y) <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple)
+pExpr = (\x y -> foldl insertToken x y) <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple)
 
 {- Print functions -}
 
 printExpr :: Expr -> String
 printExpr (ExprOper (Operator x) lh@(ExprOper _ _ _) rh@(ExprOper _ _ _)) = (printExpr lh) ++ x ++ (printExpr rh)
-printExpr (ExprOper (Operator x) lh                  rh@(ExprOper _ _ _)) = (showExpr  lh) ++ x ++ (printExpr rh)
-printExpr (ExprOper (Operator x) lh@(ExprOper _ _ _) rh)                  = (printExpr lh) ++ x ++ (showExpr  rh)
-printExpr (ExprOper (Operator x) lh rh)                                   = "(" ++ (showExpr lh) ++ x ++ (showExpr rh) ++ ")"
+printExpr (ExprOper (Operator x) lh                  rh@(ExprOper _ _ _)) = "(" ++ (showExpr  lh) ++ x ++ (printExpr rh) ++ ")"
+printExpr (ExprOper (Operator x) lh@(ExprOper _ _ _) rh)                  = "(" ++ (printExpr lh) ++ x ++ (showExpr  rh) ++ ")"
+printExpr (ExprOper (Operator x) lh rh)                                   = "(" ++ (showExpr  lh) ++ x ++ (showExpr  rh) ++ ")"
 
 showExpr :: Expr -> String
 showExpr (ExprConst (ConstInt x))  = show x
 showExpr (ExprConst (ConstChar x)) = [x]
 showExpr x                         = show x
 
-{- end ################## -}
+{- end ########### -}
 
 insertToken :: Expr -> (Token, Expr) -> Expr
 insertToken expr@(ExprOper prev_op lexpr rexpr) (op,v) | compPrecedence prev_op op = ExprOper op expr v
                                                        | otherwise                 = ExprOper prev_op lexpr (insertToken rexpr (op,v))
 insertToken expr (op,v)                                = ExprOper op expr v
 
-data Assoc = LR | RL deriving (Eq, Show)
+data Assoc = LR | RL deriving (Eq)
 
 -- List of operators, their presedences and whether they're associated to the left or right. [(Operator, Presedence, Assoc)]
 opAssoc :: [(Token, Int, Assoc)]
@@ -110,13 +114,28 @@ pStatDecl =  pStat
          <|> StatDecl <$> pDeclSemi
 
 pStat :: Parser Token Stat
-pStat =  StatExpr <$> pExpr <*  sSemi
-     <|> StatIf     <$ symbol KeyIf     <*> parenthesised pExpr <*> pStat <*> optionalElse
-     <|> StatWhile  <$ symbol KeyWhile  <*> parenthesised pExpr <*> pStat
-     <|> StatReturn <$ symbol KeyReturn <*> pExpr               <*  sSemi
+pStat =  StatExpr   <$> pExpr <* sSemi
+     <|> StatIf     <$ symbol KeyIf     <*> parenthesised pExpr   <*> pStat <*> optionalElse
+     <|> StatWhile  <$ symbol KeyWhile  <*> parenthesised pExpr   <*> pStat
+     <|> forToWhile <$ symbol KeyFor    <*  symbol POpen <*> pExpr <* sSemi <*> pExpr <* sSemi <*> pExpr <* symbol PClose <*> pStat -- Ex 5
+     <|> StatReturn <$ symbol KeyReturn <*> pExpr                 <*  sSemi
      <|> pBlock
-     where optionalElse = option ((\_ x -> x) <$> symbol KeyElse <*> pStat) (StatBlock [])
+     where
+       optionalElse = option ((\_ x -> x) <$> symbol KeyElse <*> pStat) (StatBlock [])
 
+       -- Type? sStdType
+       forToWhile :: Expr -> Expr -> Expr -> Stat -> Stat
+       forToWhile init expr increment forBody = StatBlock (StatExpr init : [StatWhile expr (StatBlock (forBody : [StatExpr increment]))])
+
+{-
+
+for (int i = 0; i < 10; i + 1)
+
+[Operator "=" (ConstChar 'i') (ConstInt 0)]  -- (StatBlock !! 0) = StatExpr
+[Operator "<" (ConstChar 'i') (ConstInt 10)] -- While expr statblock
+[Operator "+" (ConstChar 'i') (ConstInt 1)]  -- (StatBlock !! last) = StatExpr
+
+-}
 
 pBlock :: Parser Token Stat
 pBlock = StatBlock <$> braced (many pStatDecl)
