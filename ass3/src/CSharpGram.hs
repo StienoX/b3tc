@@ -23,7 +23,7 @@ data Stat = StatDecl   Decl
 data Expr = ExprConst  Token
           | ExprVar    Token
           | ExprOper   Token Expr Expr
-          | ExprMethod [Expr] -- Token [Expr]
+          | ExprMethod Token [Expr]
           deriving Show
 
 data Decl = Decl Type Token
@@ -42,12 +42,12 @@ braced        p = pack (symbol COpen) p (symbol CClose)
 
 pExprSimple :: Parser Token Expr
 pExprSimple =  ExprConst  <$> sConst
+           <|> ExprMethod <$> sLowerId <*> parenthesised (option (listOf pExprSimple (symbol Comma)) [])
            <|> ExprVar    <$> sLowerId
            <|> parenthesised pExpr
-           <|> ExprMethod <$> parenthesised (option (listOf pExprSimple (symbol Comma)) [])
 
 pExpr :: Parser Token Expr
-pExpr = (\x y -> foldl insertToken x y) <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple)
+pExpr = foldl insertToken <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple)
 
 {- Print functions -}
 
@@ -101,7 +101,7 @@ compPrecedence op1 op2 = let (prec1, asoc1) = getPrec op1 opAssoc
   where
     getPrec :: Token -> [(Token, Int, Assoc)] -> (Int, Assoc)
     getPrec _ []  = (8, LR)
-    getPrec op@(Operator o) (((Operator x), i, a):xs)
+    getPrec op@(Operator o) ((Operator x, i, a):xs)
       | o == x    = (i, a)
       | otherwise = getPrec op xs
 
@@ -115,31 +115,19 @@ pStatDecl =  pStat
 
 pStat :: Parser Token Stat
 pStat =  StatExpr   <$> pExpr <* sSemi
-     <|> StatIf     <$ symbol KeyIf     <*> parenthesised pExpr   <*> pStat <*> optionalElse
-     <|> StatWhile  <$ symbol KeyWhile  <*> parenthesised pExpr   <*> pStat
-     <|> forToWhile <$ symbol KeyFor    <*  symbol POpen <*> pExpr <* sSemi <*> pExpr <* sSemi <*> pExpr <* symbol PClose <*> pStat -- Ex 5
-     <|> StatReturn <$ symbol KeyReturn <*> pExpr                 <*  sSemi
+     <|> StatIf     <$  symbol KeyIf     <*> parenthesised pExpr    <*> pStat <*> optionalElse
+     <|> StatWhile  <$  symbol KeyWhile  <*> parenthesised pExpr    <*> pStat
+     <|> forToWhile <$  symbol KeyFor    <*  symbol POpen <*> pExpr <*  sSemi <*> pExpr <* sSemi <*> pExpr <* symbol PClose <*> pStat -- Ex 5
+     <|> StatReturn <$  symbol KeyReturn <*> pExpr                  <*  sSemi
      <|> pBlock
      where
        optionalElse = option ((\_ x -> x) <$> symbol KeyElse <*> pStat) (StatBlock [])
 
-       -- Type? sStdType
        forToWhile :: Expr -> Expr -> Expr -> Stat -> Stat
        forToWhile init expr increment forBody = StatBlock (StatExpr init : [StatWhile expr (StatBlock (forBody : [StatExpr increment]))])
 
-{-
-
-for (int i = 0; i < 10; i + 1)
-
-[Operator "=" (ConstChar 'i') (ConstInt 0)]  -- (StatBlock !! 0) = StatExpr
-[Operator "<" (ConstChar 'i') (ConstInt 10)] -- While expr statblock
-[Operator "+" (ConstChar 'i') (ConstInt 1)]  -- (StatBlock !! last) = StatExpr
-
--}
-
 pBlock :: Parser Token Stat
 pBlock = StatBlock <$> braced (many pStatDecl)
-
 
 pMeth :: Parser Token Member
 pMeth = MemberM <$> methRetType <*> sLowerId <*> methArgList <*> pBlock
@@ -154,7 +142,6 @@ pType0 =  TypePrim <$> sStdType
 pType :: Parser Token Type
 pType = foldr (const TypeArray) <$> pType0 <*> many (bracketed (succeed ()))
 
-
 pDecl :: Parser Token Decl
 pDecl = Decl <$> pType <*> sLowerId
 
@@ -163,4 +150,3 @@ pDeclSemi = const <$> pDecl <*> sSemi
 
 pClass :: Parser Token Class
 pClass = Class <$ symbol KeyClass <*> sUpperId <*> braced (many pMember)
-

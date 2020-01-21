@@ -85,13 +85,11 @@ lexEnum f xs = f <$> choice (map keyword xs)
 lexTerminal :: Parser Char Token
 lexTerminal = choice [t <$ keyword s | (t,s) <- terminals]
 
-
 stdTypes :: [String]
 stdTypes = ["int", "long", "double", "float", "byte", "short", "bool", "char"]
 
 operators :: [String]
 operators = ["+", "-", "*", "/", "%", "&&", "||", "^", "<=", "<", ">=", ">", "==", "!=", "="]
-
 
 lexToken :: Parser Char Token
 lexToken = sSingleComment *> lexToken <|> greedyChoice -- Ex 3
@@ -106,7 +104,6 @@ lexToken = sSingleComment *> lexToken <|> greedyChoice -- Ex 3
              ]
 
 lexicalScanner :: Parser Char [Token]
---lexicalScanner = lexWhiteSpace *> (choice [sSingleComment epsilon *> greedy (lexToken <* lexWhiteSpace) <* eof
 lexicalScanner = lexWhiteSpace *> greedy (lexToken <* lexWhiteSpace) <* eof
 
 -- Scans for single line tokens. Ex 3

@@ -3,7 +3,6 @@ module CSharpAlgebra where
 import CSharpLex
 import CSharpGram
 
-
 type CSharpAlgebra clas memb stat expr
     = (  Token -> [memb] -> clas
 
@@ -22,12 +21,12 @@ type CSharpAlgebra clas memb stat expr
       ,  ( Token                  -> expr
          , Token                  -> expr
          , Token -> expr -> expr  -> expr
+         , Token -> [expr]        -> expr
          )
       )
 
-
 foldCSharp :: CSharpAlgebra clas memb stat expr -> Class -> clas
-foldCSharp (c1, (m1,m2), (s1,s2,s3,s4,s5,s6), (e1,e2,e3)) = fClas
+foldCSharp (c1, (m1,m2), (s1,s2,s3,s4,s5,s6), (e1,e2,e3,e4)) = fClas
     where
         fClas (Class      c ms)     = c1 c (map fMemb ms)
         fMemb (MemberD    d)        = m1 d
@@ -41,4 +40,6 @@ foldCSharp (c1, (m1,m2), (s1,s2,s3,s4,s5,s6), (e1,e2,e3)) = fClas
         fExpr (ExprConst  con)      = e1 con
         fExpr (ExprVar    var)      = e2 var
         fExpr (ExprOper   op e1 e2) = e3 op (fExpr e1) (fExpr e2)
+        -- method
+        fExpr (ExprMethod s xs)     = e4 s (map fExpr xs)
 
