@@ -1,5 +1,6 @@
 module CSharpLex where
 
+import Debug.Trace    
 import Data.Char
 import Control.Monad
 import ParseLib.Abstract
@@ -70,12 +71,9 @@ lexUpperId = (\x xs -> UpperId (x:xs)) <$> satisfy isUpper <*> greedy (satisfy i
 lexConstInt :: Parser Char Token
 lexConstInt = (ConstInt . read) <$> greedy1 (satisfy isDigit)
 
--- Char lexer, ex 1
 lexConstChar :: Parser Char Token
 lexConstChar = ConstChar <$ symbol '\'' <*> anySymbol <* symbol '\''
--- lexConstChar = ConstChar <$> symbol '\'' *> anySymbol <* symbol '\''
 
--- Bool lexer, ex 1
 lexConstBool :: Parser Char Token
 lexConstBool = ConstBool True <$ token "true" <|> ConstBool False <$ token "false"
 
@@ -92,23 +90,25 @@ operators :: [String]
 operators = ["+", "-", "*", "/", "%", "&&", "||", "^", "<=", "<", ">=", ">", "==", "!=", "="]
 
 lexToken :: Parser Char Token
-lexToken = sSingleComment *> lexToken <|> greedyChoice -- Ex 3
+lexToken = greedyChoice
              [ lexTerminal
              , lexEnum StdType stdTypes
              , lexEnum Operator operators
              , lexConstInt
-             , lexConstChar -- Ex 1
-             , lexConstBool -- Ex 1
+             , lexConstChar
+             , lexConstBool
              , lexLowerId
              , lexUpperId
              ]
 
 lexicalScanner :: Parser Char [Token]
-lexicalScanner = lexWhiteSpace *> greedy (lexToken <* lexWhiteSpace) <* eof
+lexicalScanner = lexIgnore *> greedy (lexToken <* lexIgnore) <* eof
 
--- Scans for single line tokens. Ex 3
-sSingleComment :: Parser Char Char
-sSingleComment = symbol '#' <* anySymbol <* token "\r\n"
+lexIgnore :: Parser Char String
+lexIgnore = lexWhiteSpace <* many (lexSingleComment <* lexWhiteSpace)
+
+lexSingleComment :: Parser Char String
+lexSingleComment = symbol '#' *> greedy (satisfy (/= '\n')) <* (() <$ symbol '\n' <|> () <$ eof)
 
 sStdType :: Parser Token Token
 sStdType = satisfy isStdType
@@ -128,7 +128,7 @@ sLowerId = satisfy isLowerId
 sConst :: Parser Token Token
 sConst  = satisfy isConst
     where isConst (ConstInt  _) = True
-          isConst (ConstChar _) = True -- Ex 1
+          isConst (ConstChar _) = True
           isConst (ConstBool _) = True
           isConst _             = False
 

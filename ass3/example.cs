@@ -1,37 +1,19 @@
-class Hello
+class Hello 
 {
     int g;
-    
+   # Print 5, 6 and 7. 
     void main()
     {
         int b;
-        b = 1;
-    }
-    
-    int square( int x )
-    {
-        int y;
-        y = x*x;
-        return y;   
+        b = f(5);
+
+# Print 5, 6 and 7.
+        # Print 5, 6 and 7.
+        print(5, 6, 7);
     }
 
-    int abs(int x)
-    {
-    	
-        if (x<0)
-            x = 0-x;
+    int f (int x) {
         return x;
     }
-    
-    int fac(int x)
-    {
-        int r; int t;
-        t=1; r=1;
-        while (t<=x)
-        {
-            r = r*t;
-            t = t+1;
-        }
-        return r;
-   }
 }
+#even this comment will be removed by our lexer, oof.

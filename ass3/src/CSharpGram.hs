@@ -42,27 +42,12 @@ braced        p = pack (symbol COpen) p (symbol CClose)
 
 pExprSimple :: Parser Token Expr
 pExprSimple =  ExprConst  <$> sConst
-           <|> ExprMethod <$> sLowerId <*> parenthesised (option (listOf pExprSimple (symbol Comma)) [])
            <|> ExprVar    <$> sLowerId
            <|> parenthesised pExpr
+           <|> ExprMethod <$> sLowerId <*> parenthesised (option (listOf pExprSimple (symbol Comma)) [])
 
 pExpr :: Parser Token Expr
 pExpr = foldl insertToken <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple)
-
-{- Print functions -}
-
-printExpr :: Expr -> String
-printExpr (ExprOper (Operator x) lh@(ExprOper _ _ _) rh@(ExprOper _ _ _)) = (printExpr lh) ++ x ++ (printExpr rh)
-printExpr (ExprOper (Operator x) lh                  rh@(ExprOper _ _ _)) = "(" ++ (showExpr  lh) ++ x ++ (printExpr rh) ++ ")"
-printExpr (ExprOper (Operator x) lh@(ExprOper _ _ _) rh)                  = "(" ++ (printExpr lh) ++ x ++ (showExpr  rh) ++ ")"
-printExpr (ExprOper (Operator x) lh rh)                                   = "(" ++ (showExpr  lh) ++ x ++ (showExpr  rh) ++ ")"
-
-showExpr :: Expr -> String
-showExpr (ExprConst (ConstInt x))  = show x
-showExpr (ExprConst (ConstChar x)) = [x]
-showExpr x                         = show x
-
-{- end ########### -}
 
 insertToken :: Expr -> (Token, Expr) -> Expr
 insertToken expr@(ExprOper prev_op lexpr rexpr) (op,v) | compPrecedence prev_op op = ExprOper op expr v

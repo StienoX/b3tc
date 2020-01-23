@@ -2,11 +2,13 @@ module CSharpCode where
 
 import Prelude hiding (LT, GT, EQ, (<$>), (<$), (<*>), (<*), (*>), sequence)
 import Data.Map as M
+import Data.Char
 import CSharpLex
 import CSharpGram
 import CSharpAlgebra
 import SSM
 
+import Debug.Trace
 
 data ValueOrAddress = Value | Address
     deriving Show
@@ -28,9 +30,9 @@ fMembDecl :: Decl -> Code
 fMembDecl _ = []
 
 fMembMeth :: Type -> Token -> [Decl] -> (Env -> Code) -> Code
-fMembMeth t (LowerId x) ps s = [LABEL x, LINK 0] ++ s env ++ [STR R3, UNLINK, RET]
-  where env = let firstAddr = negate (length ps + 1)
-              in  fromList $ zip (fmap (\(Decl _ (LowerId x)) -> x) ps) [firstAddr .. -2]
+fMembMeth t (LowerId x) ps s = let firstAddr = negate (length ps + 1)
+                                   env       = fromList $ zip (fmap (\(Decl _ (LowerId x)) -> x) ps) [firstAddr .. -2]
+                               in [LABEL x, LINK 0] ++ s env ++ [UNLINK, RET]
 
 fStatDecl :: Decl -> Env -> Code
 fStatDecl _ _ = []
@@ -51,19 +53,23 @@ fStatWhile e s1 env = [BRA n] ++ s1 env ++ c ++ [BRT (-(n + k + 2))]
         (n, k) = (codeSize (s1 env), codeSize c)
 
 fStatReturn :: (ValueOrAddress -> Env -> Code) -> Env -> Code
-fStatReturn e env = e Value env ++ [pop] ++ [STR R3, RET] -- UNLINK?
+fStatReturn e env = e Value env ++ [STR R3, UNLINK, RET] -- Store return result into the result register (RR).
 
 fStatBlock :: [Env -> Code] -> Env -> Code
 fStatBlock xs env = xs >>= ($ env)
 
 fExprCon :: Token -> ValueOrAddress -> Env -> Code
-fExprCon (ConstInt n) _ env = [LDC n]
+fExprCon (ConstInt  n) _ _ = [LDC n]
+fExprCon (ConstChar n) _ _ = [LDC $ ord n]
+fExprCon (ConstBool n) _ _ = [LDC $ fromEnum n]
 
 fExprVar :: Token -> ValueOrAddress -> Env -> Code
-fExprVar (LowerId x) va env = let loc = (env ! x) 
-                              in case va of
-                                    Value    -> [LDL  loc]
-                                    Address  -> [LDLA loc]
+fExprVar (LowerId x) va env
+  | M.null env = []
+  | otherwise  = let loc = (env ! x)
+                 in case va of
+                     Value    -> [LDL  loc]
+                     Address  -> [LDLA loc]
 
 fExprOp :: Token -> (ValueOrAddress -> Env -> Code) -> (ValueOrAddress -> Env -> Code) -> ValueOrAddress -> Env -> Code
 fExprOp (Operator "=")  e1 e2 _ env = e2 Value env ++ [LDS 0] ++ e1 Address env ++ [STA 0]
@@ -72,7 +78,7 @@ fExprOp (Operator "&&") e1 e2 _ env = e1 Value env ++ [BRF $ codeSize (e2 Value 
 fExprOp (Operator op)   e1 e2 _ env = e1 Value env ++ e2 Value env ++ [opCodes ! op]
 
 fExprMethod :: Token -> [ValueOrAddress -> Env -> Code] -> ValueOrAddress -> Env -> Code
-fExprMethod (LowerId "print") xs _ env = (xs >>= (\x -> x Value env)) ++ ([negate ((length xs) + 1) .. 0] >>= (\x -> LDS x : [TRAP 0]))
+fExprMethod (LowerId "print") xs _ env = (xs >>= (\x -> x Value env)) ++ ([negate (length xs - 1) .. 0] >>= (\x -> LDS x : [TRAP 0]))
 fExprMethod (LowerId s)       xs _ env = (xs >>= (\x -> x Value env)) ++ [Bsr s, AJS (negate (length xs))]
 
 opCodes :: Map String Instr
