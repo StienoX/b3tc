@@ -28,7 +28,7 @@ fMembDecl :: Decl -> Code
 fMembDecl _ = []
 
 fMembMeth :: Type -> Token -> [Decl] -> (Env -> Code) -> Code
-fMembMeth t (LowerId x) ps s = [LABEL x, LINK 0] ++ s env ++ [UNLINK, RET]
+fMembMeth t (LowerId x) ps s = [LABEL x, LINK 0] ++ s env ++ [STR R3, UNLINK, RET]
   where env = let firstAddr = negate (length ps + 1)
               in  fromList $ zip (fmap (\(Decl _ (LowerId x)) -> x) ps) [firstAddr .. -2]
 
@@ -51,7 +51,7 @@ fStatWhile e s1 env = [BRA n] ++ s1 env ++ c ++ [BRT (-(n + k + 2))]
         (n, k) = (codeSize (s1 env), codeSize c)
 
 fStatReturn :: (ValueOrAddress -> Env -> Code) -> Env -> Code
-fStatReturn e env = e Value env ++ [pop] ++ [RET]
+fStatReturn e env = e Value env ++ [pop] ++ [STR R3, RET] -- UNLINK?
 
 fStatBlock :: [Env -> Code] -> Env -> Code
 fStatBlock xs env = xs >>= ($ env)
@@ -72,7 +72,7 @@ fExprOp (Operator "&&") e1 e2 _ env = e1 Value env ++ [BRF $ codeSize (e2 Value 
 fExprOp (Operator op)   e1 e2 _ env = e1 Value env ++ e2 Value env ++ [opCodes ! op]
 
 fExprMethod :: Token -> [ValueOrAddress -> Env -> Code] -> ValueOrAddress -> Env -> Code
-fExprMethod (LowerId "print") xs _ env = (xs >>= (\x -> x Value env)) ++ replicate (length xs) (TRAP 0)
+fExprMethod (LowerId "print") xs _ env = (xs >>= (\x -> x Value env)) ++ ([negate ((length xs) + 1) .. 0] >>= (\x -> LDS x : [TRAP 0]))
 fExprMethod (LowerId s)       xs _ env = (xs >>= (\x -> x Value env)) ++ [Bsr s, AJS (negate (length xs))]
 
 opCodes :: Map String Instr
