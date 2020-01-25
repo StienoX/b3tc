@@ -24,7 +24,7 @@ main = do
          files <- case args of
                     []  ->  do
                               putStrLn "no argument given; assuming example.cs"
-                              return [("example.cs", "example.ssm")]
+                              return [("test-cases/01-test-task01.cs", "example.ssm")]
                     xs  ->  return (map (\ f -> (f, addExtension (dropExtension f) "ssm")) xs)
          -- translate each of the files
          mapM_ processFile files

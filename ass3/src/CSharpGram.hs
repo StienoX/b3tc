@@ -44,7 +44,7 @@ pExprSimple :: Parser Token Expr
 pExprSimple =  ExprConst  <$> sConst
            <|> ExprVar    <$> sLowerId
            <|> parenthesised pExpr
-           <|> ExprMethod <$> sLowerId <*> parenthesised (option (listOf pExprSimple (symbol Comma)) [])
+           <|> ExprMethod <$> sLowerId <*> parenthesised (option (listOf pExpr (symbol Comma)) [])
 
 pExpr :: Parser Token Expr
 pExpr = foldl insertToken <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple)

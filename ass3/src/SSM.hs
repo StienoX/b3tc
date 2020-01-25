@@ -34,8 +34,6 @@ data Instr
     deriving Show
 
 type Code = [Instr]
-type Variables = [Instr]
-
 
 pop :: Instr
 pop = AJS (-1)

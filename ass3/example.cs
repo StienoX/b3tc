@@ -13,7 +13,7 @@ class Hello
     }
 
     int f (int x) {
-        return x;
+        return x * x;
     }
 }
 #even this comment will be removed by our lexer, oof.
