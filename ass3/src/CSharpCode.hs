@@ -32,7 +32,7 @@ fMembDecl _ = []
 fMembMeth :: Type -> Token -> [Decl] -> (Env -> Code) -> Code
 fMembMeth t (LowerId x) ps s = let firstAddr = negate $ length ps + 1
                                    env       = fromList $ zip (fmap (\(Decl _ (LowerId x)) -> x) ps) [firstAddr .. ]
-                               in  [LABEL x, LINK 0] ++ s env ++ [UNLINK, RET]
+                               in  [LABEL x, LINK 0] ++ s env ++ [UNLINK, RET] -- Set the LABEL and LINK, pass the environment, and UNLICK, RET after method call.
 
 fStatDecl :: Decl -> Env -> Code
 fStatDecl _ _ = []
@@ -51,7 +51,7 @@ fStatWhile e s1 env = [BRA n] ++ s1 env ++ c ++ [BRT (-(n + k + 2))]
           (n, k) = (codeSize (s1 env), codeSize c)
 
 fStatReturn :: (ValueOrAddress -> Env -> Code) -> Env -> Code
-fStatReturn e env = e Value env ++ [STR R3, UNLINK, RET] -- Store return result into the result register (RR).
+fStatReturn e env = e Value env ++ [STR RR] -- Store return result into the result register (RR).
 
 fStatBlock :: [Env -> Code] -> Env -> Code
 fStatBlock xs env = xs >>= ($ env)
@@ -63,21 +63,21 @@ fExprCon (ConstBool n) _ _ = [LDC $ fromEnum n]
 
 fExprVar :: Token -> ValueOrAddress -> Env -> Code
 fExprVar (LowerId x) va env
-  | M.null env = []
-  | otherwise  = let loc = env ! x
+  | M.null env = [LDC 0] -- [Temporary] Default value for variables initialized without value, prevents odd behaviour.
+  | otherwise  = let loc = (traceShow env) (env ! x)
                  in case va of
-                     Value    -> [LDL  loc]
-                     Address  -> [LDLA loc]
+                     Value   -> [LDL  loc]
+                     Address -> [LDLA loc]
 
 fExprOp :: Token -> (ValueOrAddress -> Env -> Code) -> (ValueOrAddress -> Env -> Code) -> ValueOrAddress -> Env -> Code
-fExprOp (Operator "=")  e1 e2 _ env = e2 Value env ++ [LDS 0] ++ e1 Address env ++ [STA 0]
-fExprOp (Operator "||") e1 e2 _ env = e1 Value env ++ [BRT $ codeSize $ e2 Value env ++ [OR] ] ++ e2 Value env ++ [OR]  -- if e1 is true, skip ahead past the OR.
-fExprOp (Operator "&&") e1 e2 _ env = e1 Value env ++ [BRF $ codeSize $ e2 Value env ++ [AND]] ++ e2 Value env ++ [AND] -- if e1 is false, skip ahead past the AND.
+fExprOp (Operator "=")  e1 e2 _ env = (traceShow $ e2 Address env) (traceShow $ e1 Address env) e2 Value env ++ [LDS 0] ++ e1 Address env ++ [STA 0]
+fExprOp (Operator "||") e1 e2 _ env = e1 Value env ++ [BRT $ codeSize $ e2 Value env ++ [AJS 1], AJS 1] ++ e2 Value env -- if e1 is true, skip past second arg. if e2 is false, take value of second arg as output of OR.
+fExprOp (Operator "&&") e1 e2 _ env = e1 Value env ++ [BRF $ codeSize $ e2 Value env ++ [AJS 1], AJS 1] ++ e2 Value env -- if e1 is false, skip past second arg. if e2 is true, take value of second arg as output of AND.
 fExprOp (Operator op)   e1 e2 _ env = e1 Value env ++ e2 Value env ++ [opCodes ! op]
 
 fExprMethod :: Token -> [ValueOrAddress -> Env -> Code] -> ValueOrAddress -> Env -> Code
-fExprMethod (LowerId "print") xs _ env = (xs >>= \x -> x Value env) ++ ([negate (length xs - 1) .. 0] >>= \x -> LDS x : [TRAP 0]) -- Copy each result on stack since Trap pops.
-fExprMethod (LowerId s)       xs _ env = (xs >>= \x -> x Value env) ++ [Bsr s, AJS (negate $ length xs), LDR R3] -- Remove function parameters and store result from RR onto the stack.
+fExprMethod (LowerId "print") xs _ env = (xs >>= \x -> x Value env) ++ ([negate (length xs - 1) .. 0] >>= \x -> LDS x : [TRAP 0]) -- Copy each result on stack before calling TRAP since TRAP pops.
+fExprMethod (LowerId s)       xs _ env = (xs >>= \x -> x Value env) ++ [Bsr s, AJS (negate $ length xs), LDR RR] -- Remove function parameters at the end of a function call and push the value of RR onto the stack.
 
 opCodes :: Map String Instr
 opCodes = fromList [ ("+", ADD), ("-", SUB),  ("*", MUL), ("/", DIV), ("%", MOD)

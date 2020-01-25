@@ -1,10 +1,10 @@
 module SSM where
 
 
-data Reg = PC | SP | MP | R3 | R4 | R5 | R6 | R7
+data Reg = PC | SP | MP | R3 | R4 | R5 | R6 | R7 | RR
    deriving Show
 
-r0, r1, r2, r3, r4, r5, r6, r7 :: Reg
+r0, r1, r2, r3, r4, r5, r6, r7, rr :: Reg
 r0 = PC
 r1 = SP
 r2 = MP
@@ -13,6 +13,7 @@ r4 = R4
 r5 = R5
 r6 = R6
 r7 = R7
+rr = RR -- Added Result Register
 
 
 data Instr

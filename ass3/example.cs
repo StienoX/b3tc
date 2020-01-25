@@ -6,6 +6,8 @@ class Hello
     {
         int b;
         b = f(5);
+        b = (4+2+1);
+        print(b);
 
 # Print 5, 6 and 7.
         # Print 5, 6 and 7.

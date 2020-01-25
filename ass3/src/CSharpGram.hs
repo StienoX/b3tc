@@ -44,16 +44,17 @@ pExprSimple :: Parser Token Expr
 pExprSimple =  ExprConst  <$> sConst
            <|> ExprVar    <$> sLowerId
            <|> parenthesised pExpr
-           <|> ExprMethod <$> sLowerId <*> parenthesised (option (listOf pExpr (symbol Comma)) [])
+           <|> ExprMethod <$> sLowerId <*> parenthesised (option (listOf pExpr (symbol Comma)) []) -- Parse method arguments using pExpr.
 
 pExpr :: Parser Token Expr
-pExpr = foldl insertToken <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple)
+pExpr = foldl insertToken <$> pExprSimple <*> greedy ((,) <$> sOperator <*> pExprSimple) --Foldl over all tokens and insert them in the expression tree.
 
-insertToken :: Expr -> (Token, Expr) -> Expr
-insertToken expr@(ExprOper prev_op lexpr rexpr) (op,v) | compPrecedence prev_op op = ExprOper op expr v
-                                                       | otherwise                 = ExprOper prev_op lexpr (insertToken rexpr (op,v))
-insertToken expr (op,v)                                = ExprOper op expr v
+insertToken :: Expr -> (Token, Expr) -> Expr                                                                                            -- Inserts the current token with an operator to the current expression tree.
+insertToken expr@(ExprOper prev_op lexpr rexpr) (op,v) | compPrecedence prev_op op = ExprOper op expr v                                 --Move the right side to the left side when place is found.
+                                                       | otherwise                 = ExprOper prev_op lexpr (insertToken rexpr (op,v))  --Move to next element in the tree on right hand side.
+insertToken expr (op,v)                                = ExprOper op expr v                                                             -- Initial tree
 
+-- Data type for operator associativity.
 data Assoc = LR | RL deriving (Eq)
 
 -- List of operators, their presedences and whether they're associated to the left or right. [(Operator, Presedence, Assoc)]
@@ -102,12 +103,13 @@ pStat :: Parser Token Stat
 pStat =  StatExpr   <$> pExpr <* sSemi
      <|> StatIf     <$  symbol KeyIf     <*> parenthesised pExpr    <*> pStat <*> optionalElse
      <|> StatWhile  <$  symbol KeyWhile  <*> parenthesised pExpr    <*> pStat
-     <|> forToWhile <$  symbol KeyFor    <*  symbol POpen <*> pExpr <*  sSemi <*> pExpr <* sSemi <*> pExpr <* symbol PClose <*> pStat -- Ex 5
+     <|> forToWhile <$  symbol KeyFor    <*  symbol POpen <*> pExpr <*  sSemi <*> pExpr <* sSemi <*> pExpr <* symbol PClose <*> pStat
      <|> StatReturn <$  symbol KeyReturn <*> pExpr                  <*  sSemi
      <|> pBlock
      where
        optionalElse = option ((\_ x -> x) <$> symbol KeyElse <*> pStat) (StatBlock [])
 
+       -- Desugar the for loop into a while loop.
        forToWhile :: Expr -> Expr -> Expr -> Stat -> Stat
        forToWhile init expr increment forBody = StatBlock (StatExpr init : [StatWhile expr (StatBlock (forBody : [StatExpr increment]))])
 

@@ -69,7 +69,7 @@ lexUpperId :: Parser Char Token
 lexUpperId = (\x xs -> UpperId (x:xs)) <$> satisfy isUpper <*> greedy (satisfy isAlphaNum)
 
 lexConstInt :: Parser Char Token
-lexConstInt = (ConstInt . read) <$> greedy1 (satisfy isDigit)
+lexConstInt = ConstInt . read <$> greedy1 (satisfy isDigit)
 
 lexConstChar :: Parser Char Token
 lexConstChar = ConstChar <$ symbol '\'' <*> anySymbol <* symbol '\''
